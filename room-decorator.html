@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Room Decorator — Coworking Booking</title>
+  <meta name="description" content="Sims-like 3D room decorator for coworking spaces">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="top-bar">
+    <a class="back-btn" id="back-btn" href="index.html" title="Back to floor plan">
+      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg> Back
+    </a>
+    <h1 class="room-title" id="room-title">Room</h1>
+    <div class="divider"></div>
+    <div class="toolbar-group">
+      <button class="icon-btn" id="undo-btn" disabled><svg viewBox="0 0 24 24"><path d="M3 10h10a5 5 0 0 1 0 10H9"/><path d="M7 14l-4-4 4-4"/></svg></button>
+      <button class="icon-btn" id="redo-btn" disabled><svg viewBox="0 0 24 24"><path d="M21 10H11a5 5 0 0 0 0 10h4"/><path d="M17 14l4-4-4-4"/></svg></button>
+    </div>
+    <div class="divider"></div>
+    <div class="toolbar-group">
+      <button class="icon-btn" id="rotate-btn" disabled>
+        <svg viewBox="0 0 24 24"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> R
+      </button>
+      <button class="icon-btn danger" id="delete-btn" disabled>
+        <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M5 6v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6"/></svg>
+      </button>
+    </div>
+    <div class="spacer"></div>
+    <span class="status-text" id="status-text">Ready</span>
+  </header>
+
+  <div class="main">
+    <aside class="sidebar">
+      <div class="sidebar-scroll" id="sidebar-scroll"></div>
+    </aside>
+    <div class="canvas-area" id="canvas-area">
+      <div class="help-hint">
+        <kbd>LMB Drag</kbd> Move Camera / Drag Furniture · <kbd>LMB</kbd> Select / Place<br>
+        <kbd>RMB</kbd> Quick Delete / Cancel · <kbd>R</kbd> Rotate · <kbd>Scroll</kbd> Zoom
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- Local Three.js library (Works 100% Offline) -->
+  <script src="js/three.min.js"></script>
+  <!-- App Data & Scripts -->
+  <script src="js/catalog-data.js"></script>
+  <script src="js/room-decorator.js"></script>
+</body>
+</html>

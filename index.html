@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coworking Booking</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Coworking Booking</h1>
+    <div class="tabs">
+      <button class="tab-btn active" data-view="admin" id="tab-admin">Admin</button>
+      <button class="tab-btn" data-view="customer" id="tab-customer">Customer</button>
+    </div>
+  </div>
+
+  <!-- Admin view -->
+  <div class="view-container admin-view active" id="view-admin">
+    <div class="palette">
+      <div class="palette-title">Tiles</div>
+      <div class="palette-item desk" draggable="true" data-type="desk" id="palette-desk">Desk</div>
+      <div class="palette-item room" draggable="true" data-type="room" id="palette-room">Meeting room</div>
+      <p class="palette-hint">Drag items onto grid.<br><strong style="color:var(--accent);">Double-click room</strong> to decorate in 3D!<br>Click <strong>×</strong> on tile to delete.</p>
+    </div>
+    <div class="canvas-wrapper">
+      <div class="canvas" id="admin-canvas">
+        <div class="drop-ghost" id="drop-ghost"></div>
+        <div class="empty-state" id="admin-empty"><span>Drag tiles here to design your floor plan</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Customer view -->
+  <div class="view-container customer-view" id="view-customer">
+    <div class="customer-toolbar">
+      <span class="hint" id="customer-hint">Click an available spot to select it</span>
+      <button class="confirm-btn" id="confirm-btn" disabled>Confirm booking</button>
+    </div>
+    <div class="canvas-wrapper">
+      <div class="canvas" id="customer-canvas">
+        <div class="empty-state" id="customer-empty"><span>No floor plan yet — ask the admin to set one up</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/floor-plan.js"></script>
+</body>
+</html>
