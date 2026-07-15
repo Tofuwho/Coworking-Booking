@@ -13,7 +13,6 @@ const SVG_ICONS = {
   sparkle: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
   trash: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
 
-  // Item detail vector icons
   chair: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 11v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z"/><path d="M6 18v3M18 18v3"/></svg>`,
   sofa: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v3"/><rect x="2" y="11" width="20" height="6" rx="2"/><path d="M4 17v4M20 17v4"/></svg>`,
   table: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="4" rx="1"/><path d="M5 10v10M19 10v10"/></svg>`,
@@ -34,20 +33,23 @@ const FLOOR_MATS = {
 };
 
 const WALL_MATS = {
-  'white':       {name:'Pure White', hex:'#ececec'},
-  'light-gray':  {name:'Cool Gray',  hex:'#a4a8b0'},
-  'warm-beige':  {name:'Sandstone Beige', hex:'#d8c8b0'},
-  'brick':       {name:'Exposed Red Brick', hex:'#a44834'},
-  'wood-panel':  {name:'Walnut Panel', hex:'#785838'},
-  'concrete':    {name:'Raw Cement', hex:'#7a7a80'},
-  'teal':        {name:'Deep Teal', hex:'#2d6a6a'},
-  'navy':        {name:'Midnight Blue', hex:'#1e2e4a'},
-  'sage':        {name:'Muted Sage', hex:'#6c886a'},
-  'blush':       {name:'Soft Blush', hex:'#be8888'},
+  'white':        {name:'Pure White',           hex:'#ececec'},
+  'glass-clear':  {name:'Clear Tempered Glass', hex:'#7ac8e2', transparent:true, opacity:0.3,  roughness:0.05, metalness:0.95, isGlass:true},
+  'glass-frosted':{name:'Frosted Privacy Glass',hex:'#b2d4e0', transparent:true, opacity:0.55, roughness:0.45, metalness:0.4,  isGlass:true},
+  'glass-tinted': {name:'Tinted Dark Glass',   hex:'#2d3a4a', transparent:true, opacity:0.65, roughness:0.1,  metalness:0.85, isGlass:true},
+  'light-gray':   {name:'Cool Gray',            hex:'#a4a8b0'},
+  'warm-beige':   {name:'Sandstone Beige',      hex:'#d8c8b0'},
+  'brick':        {name:'Exposed Red Brick',    hex:'#a44834'},
+  'wood-panel':   {name:'Walnut Panel',         hex:'#785838'},
+  'concrete':     {name:'Raw Cement',           hex:'#7a7a80'},
+  'teal':         {name:'Deep Teal',            hex:'#2d6a6a'},
+  'navy':         {name:'Midnight Blue',        hex:'#1e2e4a'},
+  'sage':         {name:'Muted Sage',           hex:'#6c886a'},
+  'blush':        {name:'Soft Blush',           hex:'#be8888'},
 };
 
 const CATEGORIES = [
-  {id:'windows', icon: SVG_ICONS.window,  name:'Windows & Doors'},
+  {id:'windows', icon: SVG_ICONS.window,  name:'Walls & Windows'},
   {id:'art',     icon: SVG_ICONS.art,     name:'Wall Art & Décor'},
   {id:'seating', icon: SVG_ICONS.seating, name:'Seating'},
   {id:'desks',   icon: SVG_ICONS.desks,   name:'Desks & Tables'},
@@ -62,7 +64,7 @@ const PRESETS = [
     name: 'Executive Office',
     icon: SVG_ICONS.sparkle,
     floor: 'light-wood',
-    leftWall: 'warm-beige',
+    leftWall: 'white',
     rightWall: 'wood-panel',
     gridW: 8, gridD: 6,
     items: [
@@ -73,13 +75,13 @@ const PRESETS = [
       { id: 'item-5', type: 'armchair', gx: 1, gy: 4, rotation: 90 },
       { id: 'item-6', type: 'rug', gx: 3, gy: 2, rotation: 0 },
       { id: 'item-7', type: 'floor-lamp', gx: 0, gy: 5, rotation: 0 },
-      { id: 'item-8', type: 'large-window', gx: 4, gy: 0, rotation: 0 },
+      { id: 'item-8', type: 'glass-partition-2', gx: 2, gy: 3, rotation: 90 },
       { id: 'item-9', type: 'abstract-art', gx: 0, gy: 3, rotation: 90 },
     ]
   },
   {
     id: 'meeting',
-    name: 'Conference Room',
+    name: 'Glass Partition Room',
     icon: SVG_ICONS.sparkle,
     floor: 'carpet-blue',
     leftWall: 'white',
@@ -96,8 +98,10 @@ const PRESETS = [
       { id: 'item-8', type: 'tv-screen', gx: 3, gy: 0, rotation: 0 },
       { id: 'item-9', type: 'whiteboard', gx: 0, gy: 2, rotation: 90 },
       { id: 'item-10', type: 'potted-plant', gx: 8, gy: 0, rotation: 0 },
-      { id: 'item-11', type: 'arched-window', gx: 0, gy: 5, rotation: 90 },
-      { id: 'item-12', type: 'wall-clock', gx: 8, gy: 0, rotation: 0 },
+      { id: 'item-11', type: 'glass-partition-2', gx: 1, gy: 5, rotation: 0 },
+      { id: 'item-12', type: 'double-door', gx: 3, gy: 5, rotation: 0 },
+      { id: 'item-13', type: 'glass-partition-2', gx: 5, gy: 5, rotation: 0 },
+      { id: 'item-14', type: 'wall-clock', gx: 8, gy: 0, rotation: 0 },
     ]
   },
   {
@@ -118,13 +122,39 @@ const PRESETS = [
       { id: 'item-7', type: 'potted-plant', gx: 0, gy: 0, rotation: 0 },
       { id: 'item-8', type: 'rug', gx: 1, gy: 3, rotation: 0 },
       { id: 'item-9', type: 'neon-sign', gx: 3, gy: 0, rotation: 0 },
-      { id: 'item-10', type: 'hanging-planter', gx: 0, gy: 1, rotation: 90 },
+      { id: 'item-10', type: 'acoustic-wall-2', gx: 5, gy: 3, rotation: 90 },
     ]
   }
 ];
 
 const FURNITURE = {
-  // ── WINDOWS & ARCHITECTURAL ──────────────────────────────────
+  // ── PLACEABLE WALLS, WINDOWS & DOORS ─────────────────────────
+  'glass-partition-2':{name:'Glass Wall (2m)', cat:'windows', icon: SVG_ICONS.window, gw:2,gd:1, parts:[
+    {dx:0,dz:0,dy:0.46, w:2.0,h:2.6,d:0.08, color:'#7ac8e2'}, // Tempered glass pane
+    {dx:0,dz:0,dy:0.42, w:2.0,h:0.08,d:0.16, color:'#2a2a30'}, // Bottom metal frame track
+    {dx:0,dz:2.52,dy:0.42, w:2.0,h:0.08,d:0.16, color:'#2a2a30'}, // Top metal frame track
+    {dx:0,dz:0,dy:0.42, w:0.08,h:2.6,d:0.16, color:'#3a3a42'}, // Left support pillar
+    {dx:1.92,dz:0,dy:0.42, w:0.08,h:2.6,d:0.16, color:'#3a3a42'}, // Right support pillar
+    {dx:0.96,dz:0,dy:0.42, w:0.06,h:2.6,d:0.12, color:'#3a3a42'}, // Center mullion seam
+  ]},
+  'frosted-partition-2':{name:'Frosted Wall (2m)', cat:'windows', icon: SVG_ICONS.window, gw:2,gd:1, parts:[
+    {dx:0,dz:0,dy:0.46, w:2.0,h:2.6,d:0.08, color:'#b2d4e0'}, // Frosted glass pane
+    {dx:0,dz:0,dy:0.42, w:2.0,h:0.08,d:0.16, color:'#3a3a40'}, // Bottom frame
+    {dx:0,dz:2.52,dy:0.42, w:2.0,h:0.08,d:0.16, color:'#3a3a40'}, // Top frame
+    {dx:0,dz:0,dy:0.42, w:0.08,h:2.6,d:0.16, color:'#4a4a52'}, // Left pillar
+    {dx:1.92,dz:0,dy:0.42, w:0.08,h:2.6,d:0.16, color:'#4a4a52'}, // Right pillar
+  ]},
+  'acoustic-wall-2':{name:'Wood Slat Wall (2m)', cat:'windows', icon: SVG_ICONS.window, gw:2,gd:1, parts:[
+    {dx:0,dz:0,dy:0.45, w:2.0,h:2.6,d:0.06, color:'#28282e'}, // Dark backing felt board
+    {dx:0.1,dz:0,dy:0.4, w:0.1,h:2.6,d:0.14, color:'#a88054'}, // Wooden slat 1
+    {dx:0.35,dz:0,dy:0.4, w:0.1,h:2.6,d:0.14, color:'#a88054'}, // Wooden slat 2
+    {dx:0.6,dz:0,dy:0.4, w:0.1,h:2.6,d:0.14, color:'#a88054'}, // Wooden slat 3
+    {dx:0.85,dz:0,dy:0.4, w:0.1,h:2.6,d:0.14, color:'#a88054'}, // Wooden slat 4
+    {dx:1.1,dz:0,dy:0.4, w:0.1,h:2.6,d:0.14, color:'#a88054'}, // Wooden slat 5
+    {dx:1.35,dz:0,dy:0.4, w:0.1,h:2.6,d:0.14, color:'#a88054'}, // Wooden slat 6
+    {dx:1.6,dz:0,dy:0.4, w:0.1,h:2.6,d:0.14, color:'#a88054'}, // Wooden slat 7
+    {dx:1.85,dz:0,dy:0.4, w:0.1,h:2.6,d:0.14, color:'#a88054'}, // Wooden slat 8
+  ]},
   'large-window':   {name:'Panoramic Window',cat:'windows', icon: SVG_ICONS.window, gw:2,gd:1, parts:[
     {dx:0,dz:1.1,dy:0, w:2.0,h:1.5,d:0.08, color:'#78b0d0'},
     {dx:0,dz:1.1,dy:0, w:2.0,h:0.06,d:0.1, color:'#333'},

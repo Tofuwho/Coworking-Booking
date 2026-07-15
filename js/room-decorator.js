@@ -404,17 +404,31 @@ function buildRoom(){
   roomGroup.add(subFloor);
 
   const lwGeo = new THREE.BoxGeometry(0.1, WALL_H, GRID_D);
-  const lwMat = new THREE.MeshStandardMaterial({color:lwm.hex, roughness:0.55, metalness:0.02, side:THREE.DoubleSide});
+  const lwMat = new THREE.MeshStandardMaterial({
+    color: lwm.hex,
+    transparent: lwm.transparent || false,
+    opacity: lwm.opacity != null ? lwm.opacity : 1.0,
+    roughness: lwm.roughness != null ? lwm.roughness : 0.55,
+    metalness: lwm.metalness != null ? lwm.metalness : 0.02,
+    side: THREE.DoubleSide
+  });
   leftWallMesh = new THREE.Mesh(lwGeo, lwMat);
   leftWallMesh.position.set(-0.05, WALL_H/2, GRID_D/2);
-  leftWallMesh.receiveShadow = true;
+  leftWallMesh.receiveShadow = !lwm.transparent;
   roomGroup.add(leftWallMesh);
 
   const rwGeo = new THREE.BoxGeometry(GRID_W, WALL_H, 0.1);
-  const rwMat = new THREE.MeshStandardMaterial({color:rwm.hex, roughness:0.55, metalness:0.02, side:THREE.DoubleSide});
+  const rwMat = new THREE.MeshStandardMaterial({
+    color: rwm.hex,
+    transparent: rwm.transparent || false,
+    opacity: rwm.opacity != null ? rwm.opacity : 1.0,
+    roughness: rwm.roughness != null ? rwm.roughness : 0.55,
+    metalness: rwm.metalness != null ? rwm.metalness : 0.02,
+    side: THREE.DoubleSide
+  });
   rightWallMesh = new THREE.Mesh(rwGeo, rwMat);
   rightWallMesh.position.set(GRID_W/2, WALL_H/2, -0.05);
-  rightWallMesh.receiveShadow = true;
+  rightWallMesh.receiveShadow = !rwm.transparent;
   roomGroup.add(rightWallMesh);
 
   const blGeo = new THREE.BoxGeometry(0.12, 0.12, GRID_D+0.1);
@@ -635,17 +649,20 @@ function createFurnitureMesh(type, gx, gz, rotation, opacity){
       const tmp=rgw; rgw=rgd; rgd=tmp;
     }
 
+    const isGlassPart = ['#7ac8e2', '#b2d4e0', '#78b0d0', '#90c8e8', '#7aa4c4'].includes(p.color.toLowerCase());
+    const partAlpha = isGlassPart ? 0.45 * alpha : alpha;
+
     const geo = new THREE.BoxGeometry(rpw, p.h, rpd);
     const mat = new THREE.MeshStandardMaterial({
       color: p.color,
-      roughness: 0.55,
-      metalness: 0.08,
-      transparent: alpha < 1,
-      opacity: alpha,
+      roughness: isGlassPart ? 0.1 : 0.55,
+      metalness: isGlassPart ? 0.9 : 0.08,
+      transparent: partAlpha < 1,
+      opacity: partAlpha,
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(rpx + rpw/2, p.dz + p.h/2, rpz + rpd/2);
-    mesh.castShadow = true;
+    mesh.castShadow = !isGlassPart;
     mesh.receiveShadow = true;
     group.add(mesh);
   });
@@ -913,6 +930,8 @@ function renderCanvas2D(){
   const lwm = WALL_MATS[state.leftWall] || WALL_MATS['white'];
   const rwm = WALL_MATS[state.rightWall] || WALL_MATS['warm-beige'];
 
+  ctx2D.save();
+  if (lwm.transparent) ctx2D.globalAlpha = lwm.opacity || 0.4;
   ctx2D.beginPath();
   ctx2D.moveTo(p0.x, p0.y);
   ctx2D.lineTo(pL.x, pL.y);
@@ -923,8 +942,11 @@ function renderCanvas2D(){
   ctx2D.fill();
   ctx2D.strokeStyle = 'rgba(0,0,0,0.15)';
   ctx2D.stroke();
+  ctx2D.restore();
 
   // Draw Right Wall
+  ctx2D.save();
+  if (rwm.transparent) ctx2D.globalAlpha = rwm.opacity || 0.4;
   ctx2D.beginPath();
   ctx2D.moveTo(p0.x, p0.y);
   ctx2D.lineTo(pR.x, pR.y);
@@ -934,6 +956,7 @@ function renderCanvas2D(){
   ctx2D.fillStyle = rwm.hex;
   ctx2D.fill();
   ctx2D.stroke();
+  ctx2D.restore();
 
   // Draw Floor Tiles
   const fm = FLOOR_MATS[state.floor] || FLOOR_MATS['light-wood'];
