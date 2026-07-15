@@ -38,8 +38,29 @@
       <div class="sidebar-scroll" id="sidebar-scroll"></div>
     </aside>
     <div class="canvas-area" id="canvas-area">
+      
+      <!-- On-Canvas Room Resizer Controls -->
+      <div class="canvas-resizer canvas-resizer-w">
+        <span class="resizer-label">Width: <strong id="resizer-w-val">8</strong>m</span>
+        <input type="range" id="canvas-size-w" min="4" max="16" value="8">
+      </div>
+
+      <div class="canvas-resizer canvas-resizer-d">
+        <span class="resizer-label">Depth: <strong id="resizer-d-val">6</strong>m</span>
+        <input type="range" id="canvas-size-d" min="4" max="16" value="6">
+      </div>
+
+      <!-- Floating Surface Color / Material Picker Popup -->
+      <div class="surface-popover" id="surface-popover">
+        <div class="popover-header">
+          <span class="popover-title" id="surface-title">Customize Surface</span>
+          <button class="close-popover" id="close-surface-btn">&times;</button>
+        </div>
+        <div class="swatch-row" id="surface-swatch-list"></div>
+      </div>
+
       <div class="help-hint">
-        <kbd>LMB Drag</kbd> Move Camera / Drag Furniture · <kbd>LMB</kbd> Select / Place<br>
+        <kbd>Click Wall/Floor</kbd> Customize Material · <kbd>LMB Drag</kbd> Move Camera / Drag Furniture<br>
         <kbd>RMB</kbd> Quick Delete / Cancel · <kbd>R</kbd> Rotate · <kbd>Scroll</kbd> Zoom
       </div>
     </div>

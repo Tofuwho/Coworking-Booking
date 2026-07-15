@@ -360,7 +360,8 @@ body {
   background: var(--surface-active); border-color: var(--accent);
   box-shadow: 0 0 16px var(--accent-glow);
 }
-.catalog-item .item-emoji { font-size: 15px; flex-shrink: 0; width: 22px; text-align: center; }
+.catalog-item .item-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 22px; height: 22px; color: var(--accent); }
+.catalog-item .item-icon svg { width: 16px; height: 16px; stroke: currentColor; }
 .catalog-item .item-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .catalog-item .item-size {
   margin-left: auto; font-size: 10px; color: var(--text-muted);
@@ -401,7 +402,7 @@ body {
 .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 
 .help-hint {
-  position: absolute; bottom: 16px; right: 16px;
+  position: absolute; bottom: 16px; left: 16px;
   font-size: 11px; color: var(--text-muted);
   background: rgba(0,0,0,0.5); padding: 8px 14px;
   border-radius: 8px; line-height: 1.6; pointer-events: none;
@@ -413,5 +414,135 @@ body {
   background: rgba(255,255,255,0.08); border-radius: 3px;
   font-family: inherit; font-size: 10px;
 }
+
+/* ── Canvas Resizer Overlays ────────────────────────────────── */
+.canvas-resizer {
+  position: absolute;
+  z-index: 15;
+  background: rgba(18, 18, 26, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  padding: 6px 14px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.canvas-resizer:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 16px var(--accent-glow);
+}
+
+.resizer-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.resizer-label strong {
+  color: var(--accent);
+}
+
+.canvas-resizer input[type=range] {
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255,255,255,0.12);
+  border-radius: 2px;
+  outline: none;
+}
+
+.canvas-resizer input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+/* Width Handle — Bottom Center */
+.canvas-resizer-w {
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 260px;
+}
+
+.canvas-resizer-w input[type=range] {
+  flex: 1;
+}
+
+/* Depth Handle — Right Center Vertical */
+.canvas-resizer-d {
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%) rotate(-90deg);
+  transform-origin: center right;
+  width: 220px;
+}
+
+.canvas-resizer-d input[type=range] {
+  flex: 1;
+}
+
+.canvas-resizer-d .resizer-label {
+  transform: rotate(90deg);
+}
+
+/* ── Surface Popover Swatch Picker ───────────────────────────── */
+.surface-popover {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.95);
+  background: rgba(18, 18, 24, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 14px 18px;
+  z-index: 50;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.5), 0 0 20px var(--accent-glow);
+  display: none;
+  opacity: 0;
+  transition: transform 0.2s cubic-bezier(0.4,0,0.2,1), opacity 0.2s;
+}
+
+.surface-popover.active {
+  display: block;
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+.popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 16px;
+}
+
+.popover-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.2px;
+}
+
+.close-popover {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.close-popover:hover { color: var(--text); }
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }

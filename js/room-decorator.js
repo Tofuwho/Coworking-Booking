@@ -23,6 +23,9 @@ let draggingItem = null;
 let itemDragStartPos = null;
 let isItemMoved = false;
 
+// Surface Selection meshes
+let leftWallMesh = null, rightWallMesh = null;
+
 // Undo stack
 let history = [], histIdx = -1;
 
@@ -62,6 +65,7 @@ function applyPreset(presetId) {
   state.nextId = state.items.length + 1;
   selectedId = null;
   saveState();
+  updateCanvasResizersUI();
   buildSidebar();
   if (isWebGL && scene) {
     buildRoom();
@@ -162,19 +166,24 @@ function initThreeEngine() {
     renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false, powerPreference:'high-performance' });
     renderer.setSize(w, h);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
     container.appendChild(renderer.domElement);
 
-    hemiLight = new THREE.HemisphereLight(0xffffff, 0x444455, 0.95);
+    hemiLight = new THREE.HemisphereLight(0xffffff, 0x3d3d4e, 0.95);
     scene.add(hemiLight);
 
-    dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
-    dirLight.position.set(15, 22, 15);
+    dirLight = new THREE.DirectionalLight(0xffffff, 1.25);
+    dirLight.position.set(15, 24, 15);
     dirLight.castShadow = true;
-    dirLight.shadow.mapSize.set(1024, 1024);
-    dirLight.shadow.camera.left = -20; dirLight.shadow.camera.right = 20;
-    dirLight.shadow.camera.top = 20; dirLight.shadow.camera.bottom = -20;
+    dirLight.shadow.mapSize.set(2048, 2048);
+    dirLight.shadow.camera.left = -22; dirLight.shadow.camera.right = 22;
+    dirLight.shadow.camera.top = 22; dirLight.shadow.camera.bottom = -22;
     dirLight.shadow.camera.near = 0.5; dirLight.shadow.camera.far = 100;
     scene.add(dirLight);
 
@@ -187,9 +196,7 @@ function initThreeEngine() {
     mouse = new THREE.Vector2();
     floorPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
 
-    // Mouse Move (Handles Hovering, Camera Panning, and Furniture Dragging)
     renderer.domElement.addEventListener('mousemove', e => {
-      // 1. Camera Panning Drag
       if(isPanDragging){
         const dx = e.clientX - panStartMouse.x;
         const dy = e.clientY - panStartMouse.y;
@@ -207,7 +214,6 @@ function initThreeEngine() {
       if(!grid) return;
       ghostPos = grid;
 
-      // 2. Furniture Dragging
       if(draggingItem && grid){
         if(canPlace(draggingItem.type, grid.gx, grid.gz, draggingItem.rotation, draggingItem.id)){
           if(draggingItem.gx !== grid.gx || draggingItem.gy !== grid.gz){
@@ -226,19 +232,27 @@ function initThreeEngine() {
       if(mode==='placing'){
         renderer.domElement.style.cursor = 'crosshair';
       } else {
+        // Hover raycasting against walls or floor
+        raycaster.setFromCamera(mouse, camera);
+        const wallIntersects = raycaster.intersectObjects([leftWallMesh, rightWallMesh].filter(Boolean));
         const onFloor = isOnFloor(grid.gx, grid.gz);
-        const hovered = onFloor ? getItemAt(grid.gx, grid.gz) : null;
-        renderer.domElement.style.cursor = hovered ? 'grab' : 'default';
+        const hoveredItem = onFloor ? getItemAt(grid.gx, grid.gz) : null;
+
+        if(hoveredItem || wallIntersects.length > 0){
+          renderer.domElement.style.cursor = 'pointer';
+        } else {
+          renderer.domElement.style.cursor = 'grab';
+        }
       }
     });
 
-    // Mouse Down Handler
     renderer.domElement.addEventListener('mousedown', e => {
       const grid = getGridFromMouse(e);
 
-      // Right Click (RMB) -> Delete item or Cancel Placement
+      // Right Click -> Delete item or Cancel Placement
       if(e.button === 2){
         e.preventDefault();
+        closeSurfacePopover();
         if(mode === 'placing'){
           cancelPlacing();
         } else if(grid && isOnFloor(grid.gx, grid.gz)){
@@ -255,8 +269,23 @@ function initThreeEngine() {
         return;
       }
 
-      // Left Click (LMB) -> Place, Start Furniture Drag, or Start Camera Pan
+      // Left Click -> Raycast Walls, Floor, or Furniture Drag
       if(e.button === 0){
+        raycaster.setFromCamera(mouse, camera);
+
+        // Check wall raycasting first
+        const wallIntersects = raycaster.intersectObjects([leftWallMesh, rightWallMesh].filter(Boolean));
+        if(mode === 'idle' && wallIntersects.length > 0){
+          const hitMesh = wallIntersects[0].object;
+          if(hitMesh === leftWallMesh){
+            openSurfacePopover('leftWall');
+            return;
+          } else if(hitMesh === rightWallMesh){
+            openSurfacePopover('rightWall');
+            return;
+          }
+        }
+
         if(mode === 'placing' && placingType && grid){
           if(canPlace(placingType, grid.gx, grid.gz, placingRot)){
             const def = FURNITURE[placingType];
@@ -277,7 +306,7 @@ function initThreeEngine() {
         const clickedItem = (grid && isOnFloor(grid.gx, grid.gz)) ? getItemAt(grid.gx, grid.gz) : null;
 
         if(clickedItem){
-          // Clicked existing furniture -> Start furniture drag
+          closeSurfacePopover();
           selectedId = clickedItem.id;
           draggingItem = clickedItem;
           itemDragStartPos = { gx: clickedItem.gx, gy: clickedItem.gy };
@@ -286,8 +315,11 @@ function initThreeEngine() {
           updateToolbar();
           const name = FURNITURE[clickedItem.type]?.name || 'Item';
           setStatus(`Dragging ${name}`);
+        } else if(grid && isOnFloor(grid.gx, grid.gz) && mode === 'idle'){
+          // Clicked empty floor space -> Open Floor Material Picker
+          openSurfacePopover('floor');
         } else {
-          // Clicked empty space -> Start camera pan drag
+          closeSurfacePopover();
           selectedId = null;
           isPanDragging = true;
           panStartMouse = { x: e.clientX, y: e.clientY };
@@ -298,7 +330,6 @@ function initThreeEngine() {
       }
     });
 
-    // Mouse Up Handler
     window.addEventListener('mouseup', e => {
       if(e.button === 0){
         if(draggingItem){
@@ -326,7 +357,6 @@ function initThreeEngine() {
 
     renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
 
-    // Uniform Zoom In / Zoom Out
     renderer.domElement.addEventListener('wheel', e => {
       e.preventDefault();
       const zoomFactor = e.deltaY > 0 ? 1.08 : 0.92;
@@ -359,7 +389,7 @@ function buildRoom(){
       const isAlt = (x+z)%2===0;
       const col = isAlt ? fm.hex : fm.alt;
       const geo = new THREE.BoxGeometry(0.98, 0.06, 0.98);
-      const mat = new THREE.MeshStandardMaterial({color:col, roughness:0.5, metalness:0.05});
+      const mat = new THREE.MeshStandardMaterial({color:col, roughness:0.45, metalness:0.08});
       const tile = new THREE.Mesh(geo, mat);
       tile.position.set(x+0.5, -0.03, z+0.5);
       tile.receiveShadow = true;
@@ -368,56 +398,56 @@ function buildRoom(){
   }
 
   const subGeo = new THREE.BoxGeometry(GRID_W+0.2, 0.15, GRID_D+0.2);
-  const subMat = new THREE.MeshStandardMaterial({color:'#1a1a20', roughness:0.9});
+  const subMat = new THREE.MeshStandardMaterial({color:'#14141a', roughness:0.9});
   const subFloor = new THREE.Mesh(subGeo, subMat);
   subFloor.position.set(GRID_W/2, -0.135, GRID_D/2);
   roomGroup.add(subFloor);
 
   const lwGeo = new THREE.BoxGeometry(0.1, WALL_H, GRID_D);
-  const lwMat = new THREE.MeshStandardMaterial({color:lwm.hex, roughness:0.6, metalness:0.02, side:THREE.DoubleSide});
-  const leftWall = new THREE.Mesh(lwGeo, lwMat);
-  leftWall.position.set(-0.05, WALL_H/2, GRID_D/2);
-  leftWall.receiveShadow = true;
-  roomGroup.add(leftWall);
+  const lwMat = new THREE.MeshStandardMaterial({color:lwm.hex, roughness:0.55, metalness:0.02, side:THREE.DoubleSide});
+  leftWallMesh = new THREE.Mesh(lwGeo, lwMat);
+  leftWallMesh.position.set(-0.05, WALL_H/2, GRID_D/2);
+  leftWallMesh.receiveShadow = true;
+  roomGroup.add(leftWallMesh);
 
   const rwGeo = new THREE.BoxGeometry(GRID_W, WALL_H, 0.1);
-  const rwMat = new THREE.MeshStandardMaterial({color:rwm.hex, roughness:0.6, metalness:0.02, side:THREE.DoubleSide});
-  const rightWall = new THREE.Mesh(rwGeo, rwMat);
-  rightWall.position.set(GRID_W/2, WALL_H/2, -0.05);
-  rightWall.receiveShadow = true;
-  roomGroup.add(rightWall);
+  const rwMat = new THREE.MeshStandardMaterial({color:rwm.hex, roughness:0.55, metalness:0.02, side:THREE.DoubleSide});
+  rightWallMesh = new THREE.Mesh(rwGeo, rwMat);
+  rightWallMesh.position.set(GRID_W/2, WALL_H/2, -0.05);
+  rightWallMesh.receiveShadow = true;
+  roomGroup.add(rightWallMesh);
 
   const blGeo = new THREE.BoxGeometry(0.12, 0.12, GRID_D+0.1);
-  const blMat = new THREE.MeshStandardMaterial({color:'#444', roughness:0.5});
+  const blMat = new THREE.MeshStandardMaterial({color:'#3a3a42', roughness:0.5});
   const bl = new THREE.Mesh(blGeo, blMat);
   bl.position.set(0.01, 0.06, GRID_D/2);
   roomGroup.add(bl);
 
   const brGeo = new THREE.BoxGeometry(GRID_W+0.1, 0.12, 0.12);
-  const brMat = new THREE.MeshStandardMaterial({color:'#444', roughness:0.5});
+  const brMat = new THREE.MeshStandardMaterial({color:'#3a3a42', roughness:0.5});
   const br = new THREE.Mesh(brGeo, brMat);
   br.position.set(GRID_W/2, 0.06, 0.01);
   roomGroup.add(br);
 
   const cpGeo = new THREE.BoxGeometry(0.14, WALL_H+0.05, 0.14);
-  const cpMat = new THREE.MeshStandardMaterial({color:'#888', roughness:0.4});
+  const cpMat = new THREE.MeshStandardMaterial({color:'#666670', roughness:0.4});
   const cp = new THREE.Mesh(cpGeo, cpMat);
   cp.position.set(-0.02, WALL_H/2, -0.02);
   roomGroup.add(cp);
 
   const cmGeo1 = new THREE.BoxGeometry(0.14, 0.08, GRID_D+0.1);
-  const cmMat = new THREE.MeshStandardMaterial({color:'#999', roughness:0.4});
+  const cmMat = new THREE.MeshStandardMaterial({color:'#888894', roughness:0.4});
   const cm1 = new THREE.Mesh(cmGeo1, cmMat);
   cm1.position.set(0.02, WALL_H+0.01, GRID_D/2);
   roomGroup.add(cm1);
 
   const cmGeo2 = new THREE.BoxGeometry(GRID_W+0.1, 0.08, 0.14);
-  const cm2Mat = new THREE.MeshStandardMaterial({color:'#999', roughness:0.4});
+  const cm2Mat = new THREE.MeshStandardMaterial({color:'#888894', roughness:0.4});
   const cm2Mesh = new THREE.Mesh(cmGeo2, cm2Mat);
   cm2Mesh.position.set(GRID_W/2, WALL_H+0.01, 0.02);
   roomGroup.add(cm2Mesh);
 
-  const gridLineMat = new THREE.LineBasicMaterial({color:0x000000, transparent:true, opacity:0.1});
+  const gridLineMat = new THREE.LineBasicMaterial({color:0x000000, transparent:true, opacity:0.12});
   for(let x=0; x<=GRID_W; x++){
     const pts = [new THREE.Vector3(x,0.005,0), new THREE.Vector3(x,0.005,GRID_D)];
     const g = new THREE.BufferGeometry().setFromPoints(pts);
@@ -463,6 +493,123 @@ function updateCamera(){
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   SURFACE MATERIAL POPOVER (INTERACTIVE WALL & FLOOR CLICKING)
+   ═══════════════════════════════════════════════════════════════ */
+function openSurfacePopover(type) {
+  const popover = document.getElementById('surface-popover');
+  const title = document.getElementById('surface-title');
+  const swatchList = document.getElementById('surface-swatch-list');
+  if (!popover || !swatchList) return;
+
+  let label = 'Surface Material';
+  let mats = {};
+  let currentKey = '';
+
+  if (type === 'leftWall') {
+    label = 'Left Wall Paint';
+    mats = WALL_MATS;
+    currentKey = state.leftWall;
+  } else if (type === 'rightWall') {
+    label = 'Right Wall Paint';
+    mats = WALL_MATS;
+    currentKey = state.rightWall;
+  } else if (type === 'floor') {
+    label = 'Floor Finish';
+    mats = FLOOR_MATS;
+    currentKey = state.floor;
+  }
+
+  if (title) title.textContent = label;
+
+  let html = '';
+  for (const [id, m] of Object.entries(mats)) {
+    html += `<div class="swatch${currentKey === id ? ' active' : ''}" data-popover-type="${type}" data-swatch-id="${id}" title="${m.name}" style="background:${m.hex}"></div>`;
+  }
+  swatchList.innerHTML = html;
+
+  swatchList.querySelectorAll('.swatch').forEach(s => {
+    s.addEventListener('click', () => {
+      const sType = s.dataset.popoverType;
+      const sId = s.dataset.swatchId;
+
+      if (sType === 'leftWall') state.leftWall = sId;
+      else if (sType === 'rightWall') state.rightWall = sId;
+      else if (sType === 'floor') state.floor = sId;
+
+      saveState();
+      if (isWebGL) buildRoom(); else renderCanvas2D();
+      showToast(`${mats[sId].name} applied`);
+      closeSurfacePopover();
+    });
+  });
+
+  popover.classList.add('active');
+}
+
+function closeSurfacePopover() {
+  const popover = document.getElementById('surface-popover');
+  if (popover) popover.classList.remove('active');
+}
+
+const closeBtn = document.getElementById('close-surface-btn');
+if (closeBtn) closeBtn.addEventListener('click', closeSurfacePopover);
+
+/* ═══════════════════════════════════════════════════════════════
+   ON-CANVAS ROOM RESIZERS (WIDTH & DEPTH HANDLES)
+   ═══════════════════════════════════════════════════════════════ */
+function setupCanvasResizers() {
+  const sizeW = document.getElementById('canvas-size-w');
+  const sizeD = document.getElementById('canvas-size-d');
+  const valW = document.getElementById('resizer-w-val');
+  const valD = document.getElementById('resizer-d-val');
+
+  if (sizeW) {
+    sizeW.value = GRID_W;
+    if (valW) valW.textContent = GRID_W;
+    sizeW.addEventListener('input', () => {
+      GRID_W = parseInt(sizeW.value);
+      state.gridW = GRID_W;
+      if (valW) valW.textContent = GRID_W;
+      state.items = state.items.filter(item => {
+        const d = getRotDims(item.type, item.rotation);
+        return item.gx + d.gw <= GRID_W && item.gy + d.gd <= GRID_D;
+      });
+      saveState();
+      if (isWebGL) { buildRoom(); rebuildItems(); } else renderCanvas2D();
+      showToast(`Width: ${GRID_W}m`);
+    });
+  }
+
+  if (sizeD) {
+    sizeD.value = GRID_D;
+    if (valD) valD.textContent = GRID_D;
+    sizeD.addEventListener('input', () => {
+      GRID_D = parseInt(sizeD.value);
+      state.gridD = GRID_D;
+      if (valD) valD.textContent = GRID_D;
+      state.items = state.items.filter(item => {
+        const d = getRotDims(item.type, item.rotation);
+        return item.gx + d.gw <= GRID_W && item.gy + d.gd <= GRID_D;
+      });
+      saveState();
+      if (isWebGL) { buildRoom(); rebuildItems(); } else renderCanvas2D();
+      showToast(`Depth: ${GRID_D}m`);
+    });
+  }
+}
+
+function updateCanvasResizersUI() {
+  const sizeW = document.getElementById('canvas-size-w');
+  const sizeD = document.getElementById('canvas-size-d');
+  const valW = document.getElementById('resizer-w-val');
+  const valD = document.getElementById('resizer-d-val');
+  if (sizeW) sizeW.value = GRID_W;
+  if (sizeD) sizeD.value = GRID_D;
+  if (valW) valW.textContent = GRID_W;
+  if (valD) valD.textContent = GRID_D;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    FURNITURE MESH (3D WEBGL)
    ═══════════════════════════════════════════════════════════════ */
 function createFurnitureMesh(type, gx, gz, rotation, opacity){
@@ -491,8 +638,8 @@ function createFurnitureMesh(type, gx, gz, rotation, opacity){
     const geo = new THREE.BoxGeometry(rpw, p.h, rpd);
     const mat = new THREE.MeshStandardMaterial({
       color: p.color,
-      roughness: 0.65,
-      metalness: 0.05,
+      roughness: 0.55,
+      metalness: 0.08,
       transparent: alpha < 1,
       opacity: alpha,
     });
@@ -661,9 +808,9 @@ function initCanvas2DEngine() {
   canvas2D.addEventListener('mousedown', e => {
     const grid = getIsoGridFromMouse2D(e);
 
-    // Right Click -> Delete or Cancel
     if(e.button === 2){
       e.preventDefault();
+      closeSurfacePopover();
       if(mode === 'placing'){
         cancelPlacing();
       } else if(grid && isOnFloor(grid.gx, grid.gz)){
@@ -679,7 +826,6 @@ function initCanvas2DEngine() {
       return;
     }
 
-    // Left Click -> Place, Drag Furniture, or Pan Camera
     if(e.button === 0){
       if(mode==='placing' && placingType && grid){
         if(canPlace(placingType, grid.gx, grid.gz, placingRot)){
@@ -698,10 +844,14 @@ function initCanvas2DEngine() {
 
       const clickedItem = (grid && isOnFloor(grid.gx, grid.gz)) ? getItemAt(grid.gx, grid.gz) : null;
       if(clickedItem){
+        closeSurfacePopover();
         selectedId = clickedItem.id;
         draggingItem = clickedItem;
         isItemMoved = false;
+      } else if(grid && isOnFloor(grid.gx, grid.gz) && mode==='idle'){
+        openSurfacePopover('floor');
       } else {
+        closeSurfacePopover();
         selectedId = null;
         isPanDragging = true;
         panStartMouse = { x: e.clientX, y: e.clientY };
@@ -739,7 +889,6 @@ function renderCanvas2D(){
   const h = canvas2D.height;
   ctx2D.clearRect(0, 0, w, h);
 
-  // Background
   ctx2D.fillStyle = '#0c0c10';
   ctx2D.fillRect(0, 0, w, h);
 
@@ -810,13 +959,11 @@ function renderCanvas2D(){
     }
   }
 
-  // Items Depth Sorting
   const sorted = [...state.items].sort((a,b)=>(a.gx+a.gy) - (b.gx+b.gy));
   sorted.forEach(item => {
     drawItem2D(item, iso, tileW, tileH, dpr);
   });
 
-  // Ghost placement preview
   if(mode==='placing' && placingType && ghostPos && isOnFloor(ghostPos.gx, ghostPos.gz)){
     drawItem2D({
       type: placingType,
@@ -833,14 +980,11 @@ function drawItem2D(item, iso, tileW, tileH, dpr){
   if(!def) return;
 
   const {gw, gd} = getRotDims(item.type, item.rotation);
-  const p = iso(item.gx, item.gy);
-
   const height3D = 35 * dpr * currentZoom;
 
   ctx2D.save();
   if(item.isGhost) ctx2D.globalAlpha = 0.5;
 
-  // Selection ring
   if(item.id === selectedId){
     const top = iso(item.gx, item.gy);
     const right = iso(item.gx+gw, item.gy);
@@ -857,13 +1001,11 @@ function drawItem2D(item, iso, tileW, tileH, dpr){
     ctx2D.stroke();
   }
 
-  // Draw Base Cuboid
   const top = iso(item.gx, item.gy);
   const right = iso(item.gx+gw, item.gy);
   const bottom = iso(item.gx+gw, item.gy+gd);
   const left = iso(item.gx, item.gy+gd);
 
-  // Top Face
   ctx2D.beginPath();
   ctx2D.moveTo(top.x, top.y - height3D);
   ctx2D.lineTo(right.x, right.y - height3D);
@@ -875,7 +1017,6 @@ function drawItem2D(item, iso, tileW, tileH, dpr){
   ctx2D.strokeStyle = 'rgba(0,0,0,0.2)';
   ctx2D.stroke();
 
-  // Left Face
   ctx2D.beginPath();
   ctx2D.moveTo(left.x, left.y);
   ctx2D.lineTo(bottom.x, bottom.y);
@@ -885,7 +1026,6 @@ function drawItem2D(item, iso, tileW, tileH, dpr){
   ctx2D.fillStyle = 'rgba(0,0,0,0.25)';
   ctx2D.fill();
 
-  // Right Face
   ctx2D.beginPath();
   ctx2D.moveTo(right.x, right.y);
   ctx2D.lineTo(bottom.x, bottom.y);
@@ -895,11 +1035,11 @@ function drawItem2D(item, iso, tileW, tileH, dpr){
   ctx2D.fillStyle = 'rgba(0,0,0,0.15)';
   ctx2D.fill();
 
-  // Label Emoji
-  ctx2D.font = `${Math.max(12, 16 * currentZoom) * dpr}px sans-serif`;
+  ctx2D.font = `600 ${Math.max(10, 12 * currentZoom) * dpr}px sans-serif`;
+  ctx2D.fillStyle = '#ffffff';
   ctx2D.textAlign = 'center';
   ctx2D.textBaseline = 'middle';
-  ctx2D.fillText(def.emoji || '🪑', (top.x + bottom.x)/2, (top.y + bottom.y)/2 - height3D);
+  ctx2D.fillText(def.name || 'Item', (top.x + bottom.x)/2, (top.y + bottom.y)/2 - height3D);
 
   ctx2D.restore();
 }
@@ -943,6 +1083,7 @@ function getItemAt(gx, gz){
    ═══════════════════════════════════════════════════════════════ */
 document.addEventListener('keydown', e => {
   if(e.key==='Escape'){
+    closeSurfacePopover();
     if(mode==='placing') cancelPlacing();
     else { selectedId=null; updateSelection(); updateToolbar(); setStatus('Ready'); }
     if(!isWebGL) renderCanvas2D();
@@ -966,6 +1107,7 @@ document.addEventListener('keydown', e => {
    ACTIONS & TOOLBAR
    ═══════════════════════════════════════════════════════════════ */
 function startPlacing(type){
+  closeSurfacePopover();
   mode='placing'; placingType=type; placingRot=0;
   selectedId=null; updateSelection(); updateToolbar(); updateCatalogHL();
   setStatus(`Click floor to place ${FURNITURE[type].name} · R rotate · Esc cancel`);
@@ -1003,7 +1145,7 @@ function deleteSelected(){
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   SIDEBAR & UI
+   CLEAN & UNCLUTTERED SIDEBAR (ONLY TEMPLATES & FURNITURE)
    ═══════════════════════════════════════════════════════════════ */
 function buildSidebar(){
   const el = document.getElementById('sidebar-scroll');
@@ -1012,56 +1154,22 @@ function buildSidebar(){
 
   // Presets Section
   if(typeof PRESETS !== 'undefined' && PRESETS.length > 0) {
-    h += `<div class="section"><div class="section-title">✨ Room Templates</div>
+    h += `<div class="section"><div class="section-title">${SVG_ICONS.sparkle} Room Templates</div>
       <div class="catalog-grid">`;
     for(const p of PRESETS){
       h += `<button class="catalog-item" data-preset="${p.id}">
-        <span class="item-emoji">${p.icon}</span>
+        <span class="item-icon">${p.icon}</span>
         <span class="item-name">${p.name}</span>
       </button>`;
     }
     h += `<button class="catalog-item" id="clear-room-btn" style="border-color:var(--danger);color:#fca5a5;">
-        <span class="item-emoji">🗑️</span>
+        <span class="item-icon">${SVG_ICONS.trash}</span>
         <span class="item-name">Clear Room</span>
       </button>`;
     h += `</div></div>`;
   }
 
-  // Size controls
-  h += `<div class="section"><div class="section-title">📐 Room Size</div>
-    <div class="size-control">
-      <label>Width</label>
-      <input type="range" id="size-w" min="4" max="16" value="${GRID_W}">
-      <span class="size-val" id="size-w-val">${GRID_W}</span>
-    </div>
-    <div class="size-control">
-      <label>Depth</label>
-      <input type="range" id="size-d" min="4" max="16" value="${GRID_D}">
-      <span class="size-val" id="size-d-val">${GRID_D}</span>
-    </div>
-  </div>`;
-
-  // Surfaces
-  if(typeof FLOOR_MATS !== 'undefined' && typeof WALL_MATS !== 'undefined') {
-    h += '<div class="section"><div class="section-title">🎨 Surfaces</div>';
-    h += '<div class="subsection"><span class="subsection-label">Floor</span><div class="swatch-row">';
-    for(const [id,m] of Object.entries(FLOOR_MATS)){
-      h += `<div class="swatch${state.floor===id?' active':''}" data-floor="${id}" title="${m.name}" style="background:${m.hex}"></div>`;
-    }
-    h += '</div></div>';
-    h += '<div class="subsection"><span class="subsection-label">Left Wall</span><div class="swatch-row">';
-    for(const [id,m] of Object.entries(WALL_MATS)){
-      h += `<div class="swatch${state.leftWall===id?' active':''}" data-lwall="${id}" title="${m.name}" style="background:${m.hex}"></div>`;
-    }
-    h += '</div></div>';
-    h += '<div class="subsection"><span class="subsection-label">Right Wall</span><div class="swatch-row">';
-    for(const [id,m] of Object.entries(WALL_MATS)){
-      h += `<div class="swatch${state.rightWall===id?' active':''}" data-rwall="${id}" title="${m.name}" style="background:${m.hex}"></div>`;
-    }
-    h += '</div></div></div>';
-  }
-
-  // Furniture Catalog
+  // Furniture Catalog Section
   if(typeof CATEGORIES !== 'undefined' && typeof FURNITURE !== 'undefined') {
     for(const cat of CATEGORIES){
       const items = Object.entries(FURNITURE).filter(([,f])=>f.cat===cat.id);
@@ -1069,7 +1177,7 @@ function buildSidebar(){
       h += `<div class="section"><div class="section-title">${cat.icon} ${cat.name}</div><div class="catalog-grid">`;
       for(const [id,f] of items){
         h += `<button class="catalog-item" data-furniture="${id}" id="cat-${id}">
-          <span class="item-emoji">${f.emoji}</span>
+          <span class="item-icon">${f.icon}</span>
           <span class="item-name">${f.name}</span>
           <span class="item-size">${f.gw}×${f.gd}</span>
         </button>`;
@@ -1087,64 +1195,6 @@ function buildSidebar(){
 
   const clearBtn = document.getElementById('clear-room-btn');
   if(clearBtn) clearBtn.addEventListener('click', clearRoom);
-
-  const sizeW = document.getElementById('size-w');
-  const sizeD = document.getElementById('size-d');
-  if(sizeW){
-    sizeW.addEventListener('input', ()=>{
-      const valEl = document.getElementById('size-w-val');
-      if(valEl) valEl.textContent = sizeW.value;
-      GRID_W = parseInt(sizeW.value);
-      state.gridW = GRID_W;
-      state.items = state.items.filter(item => {
-        const d = getRotDims(item.type, item.rotation);
-        return item.gx + d.gw <= GRID_W && item.gy + d.gd <= GRID_D;
-      });
-      saveState();
-      if(isWebGL){ buildRoom(); rebuildItems(); } else renderCanvas2D();
-      showToast(`Width: ${GRID_W}`);
-    });
-  }
-  if(sizeD){
-    sizeD.addEventListener('input', ()=>{
-      const valEl = document.getElementById('size-d-val');
-      if(valEl) valEl.textContent = sizeD.value;
-      GRID_D = parseInt(sizeD.value);
-      state.gridD = GRID_D;
-      state.items = state.items.filter(item => {
-        const d = getRotDims(item.type, item.rotation);
-        return item.gx + d.gw <= GRID_W && item.gy + d.gd <= GRID_D;
-      });
-      saveState();
-      if(isWebGL){ buildRoom(); rebuildItems(); } else renderCanvas2D();
-      showToast(`Depth: ${GRID_D}`);
-    });
-  }
-
-  el.querySelectorAll('.swatch[data-floor]').forEach(s=>{
-    s.addEventListener('click', ()=>{
-      state.floor=s.dataset.floor; saveState();
-      if(isWebGL) buildRoom(); else renderCanvas2D();
-      el.querySelectorAll('.swatch[data-floor]').forEach(x=>x.classList.toggle('active',x.dataset.floor===state.floor));
-      showToast(`Floor: ${FLOOR_MATS[state.floor].name}`);
-    });
-  });
-  el.querySelectorAll('.swatch[data-lwall]').forEach(s=>{
-    s.addEventListener('click', ()=>{
-      state.leftWall=s.dataset.lwall; saveState();
-      if(isWebGL) buildRoom(); else renderCanvas2D();
-      el.querySelectorAll('.swatch[data-lwall]').forEach(x=>x.classList.toggle('active',x.dataset.lwall===state.leftWall));
-      showToast(`Left wall: ${WALL_MATS[state.leftWall].name}`);
-    });
-  });
-  el.querySelectorAll('.swatch[data-rwall]').forEach(s=>{
-    s.addEventListener('click', ()=>{
-      state.rightWall=s.dataset.rwall; saveState();
-      if(isWebGL) buildRoom(); else renderCanvas2D();
-      el.querySelectorAll('.swatch[data-rwall]').forEach(x=>x.classList.toggle('active',x.dataset.rwall===state.rightWall));
-      showToast(`Right wall: ${WALL_MATS[state.rightWall].name}`);
-    });
-  });
 
   el.querySelectorAll('.catalog-item[data-furniture]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -1217,6 +1267,7 @@ function startApp() {
   GRID_W = state.gridW || 8;
   GRID_D = state.gridD || 6;
 
+  setupCanvasResizers();
   buildSidebar();
 
   const undoBtn = document.getElementById('undo-btn');
