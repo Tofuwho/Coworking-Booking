@@ -3,49 +3,263 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Coworking Booking</title>
+  <title>Coworking Studio — Workspace Manager</title>
+  <meta name="description" content="JobStreet-style master-detail coworking floor manager and reservation portal">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-  <!-- Header -->
-  <div class="header">
-    <h1>Coworking Booking</h1>
-    <div class="tabs">
-      <button class="tab-btn active" data-view="admin" id="tab-admin">Admin</button>
-      <button class="tab-btn" data-view="customer" id="tab-customer">Customer</button>
-    </div>
-  </div>
-
-  <!-- Admin view -->
-  <div class="view-container admin-view active" id="view-admin">
-    <div class="palette">
-      <div class="palette-title">Tiles</div>
-      <div class="palette-item desk" draggable="true" data-type="desk" id="palette-desk">Desk</div>
-      <div class="palette-item room" draggable="true" data-type="room" id="palette-room">Meeting room</div>
-      <p class="palette-hint">Drag items onto grid.<br><strong style="color:var(--accent);">Double-click room</strong> to decorate in 3D!<br>Click <strong>×</strong> on tile to delete.</p>
-    </div>
-    <div class="canvas-wrapper">
-      <div class="canvas" id="admin-canvas">
-        <div class="drop-ghost" id="drop-ghost"></div>
-        <div class="empty-state" id="admin-empty"><span>Drag tiles here to design your floor plan</span></div>
+  <!-- Top Header Navigation -->
+  <header class="header">
+    <div class="brand-logo">
+      <svg class="logo-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+      <div class="brand-text">
+        <span class="brand-name">Coworking Studio</span>
+        <span class="brand-sub">Workspace Manager</span>
       </div>
     </div>
-  </div>
 
-  <!-- Customer view -->
-  <div class="view-container customer-view" id="view-customer">
-    <div class="customer-toolbar">
-      <span class="hint" id="customer-hint">Click an available spot to select it</span>
-      <button class="confirm-btn" id="confirm-btn" disabled>Confirm booking</button>
+    <div class="divider"></div>
+
+    <!-- Role View Tabs -->
+    <nav class="tabs" role="tablist" aria-label="Role View Selector">
+      <button class="tab-btn active" data-view="admin" id="tab-admin" role="tab" aria-selected="true" aria-controls="view-admin">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        Admin Manager
+      </button>
+      <button class="tab-btn" data-view="customer" id="tab-customer" role="tab" aria-selected="false" aria-controls="view-customer">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        User Booking Portal
+      </button>
+    </nav>
+
+    <div class="spacer"></div>
+
+    <!-- Live Workspace Stats Pill -->
+    <div class="stats-pill" title="Live Floor Plan Overview">
+      <span class="stat-item"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><path d="M4 10v10M20 10v10"/></svg> Desks: <strong id="stat-desks">0</strong></span>
+      <span class="stat-item"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg> Rooms: <strong id="stat-rooms">0</strong></span>
+      <span class="stat-item highlight"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Booked: <strong id="stat-booked">0</strong></span>
     </div>
-    <div class="canvas-wrapper">
-      <div class="canvas" id="customer-canvas">
-        <div class="empty-state" id="customer-empty"><span>No floor plan yet — ask the admin to set one up</span></div>
-      </div>
+
+    <!-- Header Actions -->
+    <div class="header-actions">
+      <button class="icon-btn danger" id="clear-floor-btn" title="Clear floor plan">
+        <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M5 6v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6"/></svg> Clear All
+      </button>
     </div>
-  </div>
+  </header>
+
+  <!-- JobStreet Master-Detail Main Grid Layout -->
+  <main class="main">
+
+    <!-- ══ ADMIN STUDIO VIEW (JOBSTREET SPLIT VIEW) ══════════════ -->
+    <div class="view-container admin-view active" id="view-admin" role="tabpanel" aria-labelledby="tab-admin">
+      
+      <!-- Left Column: Master Rooms & Spot Cards Feed -->
+      <aside class="master-panel">
+        <div class="master-header">
+          <div class="search-bar">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="admin-search-input" placeholder="Search rooms or desks...">
+          </div>
+          <div class="quick-add-group">
+            <button class="add-btn" id="add-desk-btn">+ Desk</button>
+            <button class="add-btn accent" id="add-room-btn">+ Meeting Room</button>
+          </div>
+        </div>
+
+        <div class="master-filter-row">
+          <button class="filter-chip active" data-admin-filter="all">All Spots</button>
+          <button class="filter-chip" data-admin-filter="room">Rooms</button>
+          <button class="filter-chip" data-admin-filter="desk">Desks</button>
+          <button class="filter-chip" id="load-preset-floor-chip" title="Load Starter Layout">⭐ Load Preset</button>
+        </div>
+
+        <!-- Master List of Room & Spot Cards -->
+        <div class="cards-feed" id="admin-cards-feed"></div>
+      </aside>
+
+      <!-- Right Column: Detail, 3D Decorator & Edit Suite Panel -->
+      <section class="detail-panel" id="admin-detail-panel">
+        
+        <div class="empty-detail" id="admin-empty-detail">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+          <h3>No Workspace Selected</h3>
+          <p>Select a room or desk from the left feed to edit description, launch the 3D Decorator, or manage settings.</p>
+        </div>
+
+        <div class="detail-content" id="admin-detail-content" style="display:none;">
+          
+          <!-- Detail Hero Banner -->
+          <div class="detail-hero">
+            <div class="hero-info">
+              <span class="hero-badge" id="detail-type-badge">Room</span>
+              <h2 class="hero-title" id="detail-title">Executive Conference Room</h2>
+              <span class="hero-sub" id="detail-coords">Grid Position: X 320, Y 80</span>
+            </div>
+
+            <!-- 3D Room Decorator Showcase Button -->
+            <button class="decorate-3d-btn" id="detail-launch-3d">
+              <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></polygon>
+              Open 3D Interior Decorator
+            </button>
+          </div>
+
+          <!-- Edit Settings & Description Form -->
+          <div class="detail-section">
+            <h4 class="section-title">Spot Configuration & Info</h4>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="edit-label">Spot Name / Label</label>
+                <input type="text" id="edit-label" placeholder="e.g. Boardroom Alpha">
+              </div>
+
+              <div class="form-field">
+                <label for="edit-type">Workspace Category</label>
+                <select id="edit-type">
+                  <option value="desk">Hot Desk (1-Person)</option>
+                  <option value="room">Private Meeting Room</option>
+                </select>
+              </div>
+
+              <div class="form-field">
+                <label for="edit-status">Availability Status</label>
+                <select id="edit-status">
+                  <option value="available">🟢 Available for Booking</option>
+                  <option value="booked">🔴 Reserved / Occupied</option>
+                </select>
+              </div>
+
+              <div class="form-field">
+                <label for="edit-capacity">Seat Capacity</label>
+                <input type="number" id="edit-capacity" min="1" max="50" value="6">
+              </div>
+            </div>
+
+            <div class="form-field full-width" style="margin-top:12px;">
+              <label for="edit-description">Description & Included Amenities</label>
+              <textarea id="edit-description" rows="3" placeholder="Describe this workspace (e.g. Equipped with 65-inch 4K screen, Whiteboard, Ergonomic Leather Chairs, High-speed Fiber WiFi)..."></textarea>
+            </div>
+          </div>
+
+          <!-- Visual Floor Map Locator -->
+          <div class="detail-section">
+            <h4 class="section-title">Visual Floor Layout Map</h4>
+            <div class="mini-canvas-container">
+              <div class="canvas" id="admin-canvas">
+                <div class="drop-ghost" id="drop-ghost"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Footer Bar -->
+          <div class="detail-actions">
+            <button class="action-btn primary" id="save-spot-btn">
+              <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Spot Details
+            </button>
+            <button class="action-btn secondary" id="duplicate-spot-btn">
+              <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Duplicate
+            </button>
+            <button class="action-btn danger" id="delete-spot-btn">
+              <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete
+            </button>
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ══ USER BOOKING PORTAL VIEW (JOBSTREET SEARCH & RESERVATION) ════ -->
+    <div class="view-container customer-view" id="view-customer" role="tabpanel" aria-labelledby="tab-customer">
+      
+      <!-- Left Column: Customer Workspace Listings Feed -->
+      <aside class="master-panel">
+        <div class="master-header">
+          <div class="search-bar">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="customer-search-input" placeholder="Search available rooms or desks...">
+          </div>
+        </div>
+
+        <div class="master-filter-row">
+          <button class="filter-chip active" data-customer-filter="all">All Available</button>
+          <button class="filter-chip" data-customer-filter="room">Meeting Rooms</button>
+          <button class="filter-chip" data-customer-filter="desk">Hot Desks</button>
+        </div>
+
+        <div class="cards-feed" id="customer-cards-feed"></div>
+      </aside>
+
+      <!-- Right Column: Selected Spot Overview & Reservation Drawer -->
+      <section class="detail-panel" id="customer-detail-panel">
+        
+        <div class="empty-detail" id="customer-empty-detail">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <h3>Select a Workspace Spot</h3>
+          <p>Choose an available room or desk from the left feed to view details, 3D interior previews, and confirm your reservation.</p>
+        </div>
+
+        <div class="detail-content" id="customer-detail-content" style="display:none;">
+          
+          <div class="detail-hero">
+            <div class="hero-info">
+              <span class="hero-badge" id="cust-type-badge">Meeting Suite</span>
+              <h2 class="hero-title" id="cust-title">Executive Conference Room</h2>
+              <span class="hero-status" id="cust-status-badge">🟢 Available Now</span>
+            </div>
+
+            <!-- Interactive 3D Room Tour Link -->
+            <a class="decorate-3d-btn" id="cust-3d-link" href="#" target="_blank" style="display:none;text-decoration:none;">
+              <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></polygon>
+              Explore 3D Interior Room Tour
+            </a>
+          </div>
+
+          <div class="detail-section">
+            <h4 class="section-title">Workspace Details & Amenities</h4>
+            <p class="description-text" id="cust-description">Fitted with 4K Display, Whiteboard, Ergonomic Leather Chairs, and High-Speed Fiber WiFi.</p>
+          </div>
+
+          <div class="detail-section">
+            <h4 class="section-title">Reservation Options</h4>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="cust-duration">Select Duration</label>
+                <select id="cust-duration">
+                  <option value="1">1 Hour</option>
+                  <option value="2" selected>2 Hours (Standard)</option>
+                  <option value="4">Half Day (4 Hours)</option>
+                  <option value="8">Full Day (8 Hours)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Customer Floor Plan Locator Map -->
+          <div class="detail-section">
+            <h4 class="section-title">Floor Location Map</h4>
+            <div class="mini-canvas-container">
+              <div class="canvas" id="customer-canvas"></div>
+            </div>
+          </div>
+
+          <div class="detail-actions">
+            <button class="action-btn primary large" id="cust-confirm-btn">
+              <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Confirm Reservation
+            </button>
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+
+  </main>
+
+  <div class="toast" id="toast"></div>
 
   <script src="js/floor-plan.js"></script>
 </body>
