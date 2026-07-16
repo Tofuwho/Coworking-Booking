@@ -6,7 +6,7 @@
  * Transaction Object Class
  * Encapsulates individual workspace audit events & reservations
  */
-class WorkspaceTransaction {
+export class WorkspaceTransaction {
   constructor(action, workspaceId, workspaceLabel, userRole, details = {}) {
     this.id = 'tx-' + Math.random().toString(36).substring(2, 9) + '-' + Date.now();
     this.action = action; // 'CREATE_SPOT' | 'UPDATE_SPOT' | 'BOOK_SPOT' | 'DECORATE_3D' | 'DELETE_SPOT'
@@ -33,7 +33,7 @@ class WorkspaceTransaction {
 /**
  * Cryptographic Block Object Class
  */
-class Block {
+export class Block {
   constructor(index, timestamp, transactions, previousHash = '') {
     this.index = index;
     this.timestamp = timestamp;
@@ -51,7 +51,6 @@ class Block {
       hash = (hash << 5) - hash + char;
       hash |= 0;
     }
-    // Convert to hex-like string representation
     const hex = Math.abs(hash).toString(16).padStart(8, '0');
     return '00' + hex + Math.abs((hash * 31) | 0).toString(16).padStart(8, '0');
   }
@@ -68,7 +67,7 @@ class Block {
 /**
  * OOP Blockchain Ledger Engine Class
  */
-class CoworkingBlockchain {
+export class CoworkingBlockchain {
   constructor() {
     this.chain = [];
     this.difficulty = 1;
@@ -123,7 +122,6 @@ class CoworkingBlockchain {
     const tx = new WorkspaceTransaction(action, workspaceId, workspaceLabel, userRole, details);
     this.pendingTransactions.push(tx);
     
-    // Automatically mine block for immediate ledger settlement
     this.minePendingTransactions();
     return tx;
   }
@@ -179,5 +177,6 @@ class CoworkingBlockchain {
   }
 }
 
-// Global Blockchain Instance Singleton
-window.coworkingChain = new CoworkingBlockchain();
+// Global Singleton
+export const coworkingChain = window.coworkingChain || new CoworkingBlockchain();
+window.coworkingChain = coworkingChain;

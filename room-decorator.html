@@ -6,7 +6,6 @@
   <title>Room Decorator — Coworking Booking</title>
   <meta name="description" content="Sims-like 3D room decorator for coworking spaces">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
@@ -27,6 +26,15 @@
       </button>
       <button class="icon-btn danger" id="delete-btn" disabled>
         <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M5 6v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6"/></svg>
+      </button>
+    </div>
+    <div class="divider"></div>
+    <div class="toolbar-group">
+      <button class="icon-btn" id="export-json-btn" title="Export Room Layout as JSON">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export
+      </button>
+      <button class="icon-btn" id="import-json-btn" title="Import Room Layout from JSON">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Import
       </button>
     </div>
     <div class="spacer"></div>
@@ -60,19 +68,15 @@
       </div>
 
       <div class="help-hint">
-        <kbd>Click Wall/Floor</kbd> Customize Material · <kbd>LMB Drag</kbd> Move Camera / Drag Furniture<br>
-        <kbd>RMB</kbd> Quick Delete / Cancel · <kbd>R</kbd> Rotate · <kbd>Scroll</kbd> Zoom
+        <kbd>Click Wall/Floor</kbd> Material · <kbd>LMB Drag</kbd> Orbit Camera / Drag Furniture<br>
+        <kbd>RMB Drag</kbd> Pan Camera · <kbd>RMB Click Item</kbd> Delete · <kbd>R</kbd> Rotate · <kbd>Scroll</kbd> Zoom
       </div>
     </div>
   </div>
 
   <div class="toast" id="toast"></div>
 
-  <!-- Vendor 3D & Animation Libraries -->
-  <script src="js/vendor/three.min.js"></script>
-  <script src="js/vendor/anime.min.js"></script>
-  <!-- App Data & Scripts -->
-  <script src="js/catalog-data.js"></script>
-  <script src="js/room-decorator.js"></script>
+  <!-- Vite ES Module Main Entry -->
+  <script type="module" src="/src/scripts/room-decorator.js"></script>
 </body>
 </html>

@@ -1,3 +1,7 @@
+import { animate as animeAnimate, stagger, remove as animeRemove } from 'animejs';
+import { coworkingChain } from './blockchain.js';
+import '/css/style.css';
+
 /* ─────────────────────────────────────────────────────────
    STRICT RBAC ENGINE & JOBSTREET MASTER-DETAIL WORKSPACE PORTAL
    WITH OOP BLOCKCHAIN SMART CONTRACT LEDGER INTEGRATION
@@ -46,26 +50,21 @@ function load() {
    ANIME.JS V4 COMPATIBILITY HELPER
 ───────────────────────────────────────────────────────── */
 function safeAnimate(targets, params) {
-  if (typeof anime === 'undefined') return;
+  if (typeof animeAnimate !== 'function') return;
   const opts = { ...params };
   if (opts.easing && !opts.ease) opts.ease = opts.easing;
 
   try {
-    if (typeof anime.animate === 'function') {
-      return anime.animate(targets, opts);
-    } else if (typeof anime === 'function') {
-      return anime({ targets, ...params });
-    }
+    return animeAnimate(targets, opts);
   } catch (err) {
     console.warn('Anime.js animation fallback:', err);
   }
 }
 
 function safeStagger(val, options) {
-  if (typeof anime === 'undefined') return 0;
   try {
-    if (typeof anime.stagger === 'function') {
-      return anime.stagger(val, options);
+    if (typeof stagger === 'function') {
+      return stagger(val, options);
     }
   } catch (_) {}
   return 0;
@@ -76,7 +75,7 @@ function animateCounter(el, targetVal) {
   const currentVal = parseInt(el.textContent) || 0;
   if (currentVal === targetVal && el._hasAnimated) return;
   el._hasAnimated = true;
-  if (typeof anime !== 'undefined') {
+  if (typeof animeAnimate === 'function') {
     const obj = { val: currentVal };
     safeAnimate(obj, {
       val: targetVal,
@@ -117,8 +116,8 @@ function showToast(msg) {
   el.textContent = msg;
   el.classList.add('show');
 
-  if (typeof anime !== 'undefined') {
-    if (typeof anime.remove === 'function') anime.remove(el);
+  if (typeof animeRemove === 'function') {
+    animeRemove(el);
     safeAnimate(el, {
       translateY: [35, 0],
       opacity: [0, 1],
@@ -183,7 +182,7 @@ function switchRole(role) {
     const isTarget = (role === 'admin' && v.id === 'view-admin') || (role === 'user' && v.id === 'view-customer');
     if (isTarget) {
       v.classList.add('active');
-      if (typeof anime !== 'undefined') {
+      if (typeof animeAnimate === 'function') {
         safeAnimate(v, {
           opacity: [0, 1],
           translateY: [16, 0],
@@ -444,7 +443,7 @@ function renderAdminCards() {
     feed.appendChild(card);
   });
 
-  if (typeof anime !== 'undefined') {
+  if (typeof animeAnimate === 'function') {
     safeAnimate(feed.querySelectorAll('.spot-card'), {
       opacity: [0, 1],
       translateY: [24, 0],
@@ -471,7 +470,7 @@ function renderAdminDetail() {
   if (emptyDetail) emptyDetail.style.display = 'none';
   if (detailContent) {
     detailContent.style.display = 'flex';
-    if (typeof anime !== 'undefined') {
+    if (typeof animeAnimate === 'function') {
       safeAnimate(detailContent.children, {
         opacity: [0, 1],
         translateX: [25, 0],
@@ -639,7 +638,7 @@ function renderCustomerCards() {
     feed.appendChild(card);
   });
 
-  if (typeof anime !== 'undefined') {
+  if (typeof animeAnimate === 'function') {
     safeAnimate(feed.querySelectorAll('.spot-card'), {
       opacity: [0, 1],
       translateY: [24, 0],
@@ -666,7 +665,7 @@ function renderCustomerDetail() {
   if (emptyDetail) emptyDetail.style.display = 'none';
   if (detailContent) {
     detailContent.style.display = 'flex';
-    if (typeof anime !== 'undefined') {
+    if (typeof animeAnimate === 'function') {
       safeAnimate(detailContent.children, {
         opacity: [0, 1],
         translateX: [25, 0],
@@ -735,7 +734,7 @@ function openBookingModal(tile) {
   modal.classList.add('active');
   const dialog = modal.querySelector('.modal-dialog');
 
-  if (typeof anime !== 'undefined') {
+  if (typeof animeAnimate === 'function') {
     safeAnimate(modal, {
       opacity: [0, 1],
       duration: 250,
@@ -755,7 +754,7 @@ function openBookingModal(tile) {
   const finalizeBtn = document.getElementById('finalize-booking-btn');
 
   const closeModal = () => {
-    if (typeof anime !== 'undefined') {
+    if (typeof animeAnimate === 'function') {
       safeAnimate(dialog, {
         scale: [1, 0.9],
         opacity: [1, 0],

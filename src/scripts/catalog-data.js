@@ -2,7 +2,7 @@
    ROOM MATERIALS & FURNITURE CATALOG DATA DEFINITIONS (VECTOR ICONS)
    ═══════════════════════════════════════════════════════════════ */
 
-const SVG_ICONS = {
+export const SVG_ICONS = {
   seating: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 11v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z"/><path d="M6 18v3M18 18v3"/></svg>`,
   desks: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="2"/><path d="M4 10v10M20 10v10M9 10v6M15 10v6"/></svg>`,
   storage: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><circle cx="12" cy="6" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="18" r="1"/></svg>`,
@@ -22,7 +22,7 @@ const SVG_ICONS = {
   cup: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/></svg>`
 };
 
-const FLOOR_MATS = {
+export const FLOOR_MATS = {
   'light-wood':  {name:'Light Wood',   hex:'#c4a46c', alt:'#d2b47e'},
   'dark-wood':   {name:'Dark Wood',    hex:'#5c3d1e', alt:'#6e4e2c'},
   'concrete':    {name:'Polished Concrete', hex:'#7a7a82', alt:'#888890'},
@@ -32,7 +32,7 @@ const FLOOR_MATS = {
   'tiles':       {name:'Terracotta Tiles', hex:'#b08068', alt:'#c09078'},
 };
 
-const WALL_MATS = {
+export const WALL_MATS = {
   'white':        {name:'Pure White',           hex:'#ececec'},
   'glass-clear':  {name:'Clear Tempered Glass', hex:'#7ac8e2', transparent:true, opacity:0.3,  roughness:0.05, metalness:0.95, isGlass:true},
   'glass-frosted':{name:'Frosted Privacy Glass',hex:'#b2d4e0', transparent:true, opacity:0.55, roughness:0.45, metalness:0.4,  isGlass:true},
@@ -48,7 +48,7 @@ const WALL_MATS = {
   'blush':        {name:'Soft Blush',           hex:'#be8888'},
 };
 
-const CATEGORIES = [
+export const CATEGORIES = [
   {id:'windows', icon: SVG_ICONS.window,  name:'Walls & Windows'},
   {id:'art',     icon: SVG_ICONS.art,     name:'Wall Art & Décor'},
   {id:'seating', icon: SVG_ICONS.seating, name:'Seating'},
@@ -58,7 +58,7 @@ const CATEGORIES = [
   {id:'amenity', icon: SVG_ICONS.amenity, name:'Amenities'},
 ];
 
-const PRESETS = [
+export const PRESETS = [
   {
     id: 'office',
     name: 'Executive Office',
@@ -127,7 +127,7 @@ const PRESETS = [
   }
 ];
 
-const FURNITURE = {
+export const FURNITURE = {
   // ── PLACEABLE WALLS, WINDOWS & DOORS ─────────────────────────
   'glass-partition-2':{name:'Glass Wall (2m)', cat:'windows', icon: SVG_ICONS.window, gw:2,gd:1, parts:[
     {dx:0,dz:0,dy:0.46, w:2.0,h:2.6,d:0.08, color:'#7ac8e2'}, // Tempered glass pane

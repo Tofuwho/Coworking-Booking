@@ -1,3 +1,14 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { animate as animeAnimate, stagger, remove as animeRemove } from 'animejs';
+import { CATEGORIES, FLOOR_MATS, WALL_MATS, FURNITURE, PRESETS, SVG_ICONS } from './catalog-data.js';
+import { getFloorMaterial, getWallMaterial, getFurnitureMaterial } from './utils/materials.js';
+import { checkAABBCollision, checkGridBounds } from './utils/collision.js';
+import { exportRoomLayoutJSON, openJSONImportPicker } from './utils/export-import.js';
+import { disposeScene } from './utils/cleanup.js';
+import '/css/style.css';
+
 /* ═══════════════════════════════════════════════════════════════
    ROOM DECORATOR ENGINE — DUAL MODE (THREE.JS 3D + CANVAS 2D FALLBACK)
    ═══════════════════════════════════════════════════════════════ */
@@ -14,10 +25,9 @@ let selectedId = null;
 let ghostPos = null;
 let currentZoom = 1.0;
 
-// Camera panning & furniture dragging states
-let cameraOffset = { x: 0, z: 0 };
-let isPanDragging = false;
-let panStartMouse = { x: 0, y: 0 };
+let controls = null;
+let animFrameId = null;
+let gltfLoader = new GLTFLoader();
 
 let draggingItem = null;
 let itemDragStartPos = null;
@@ -61,7 +71,6 @@ function applyPreset(presetId) {
   state.gridD = preset.gridD;
   GRID_W = preset.gridW;
   GRID_D = preset.gridD;
-  cameraOffset = { x: 0, z: 0 };
   state.items = JSON.parse(JSON.stringify(preset.items));
   state.nextId = state.items.length + 1;
   selectedId = null;
@@ -156,13 +165,17 @@ function initThreeEngine() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color('#eaf0f6');
 
-    const rect = container.getBoundingClientRect();
-    const w = rect.width || window.innerWidth || 800;
-    const h = rect.height || (window.innerHeight - 52) || 600;
-    const aspect = w / h;
+    const w = container.clientWidth || window.innerWidth || 800;
+    const h = container.clientHeight || (window.innerHeight - 52) || 600;
+    const aspect = (w > 0 && h > 0) ? (w / h) : (16 / 9);
 
-    const baseFrust = (Math.max(GRID_W, GRID_D) * 0.75 + 2) * currentZoom;
-    camera = new THREE.OrthographicCamera(-baseFrust*aspect, baseFrust*aspect, baseFrust, -baseFrust, 0.1, 1000);
+    const maxDim = Math.max(GRID_W, GRID_D);
+    const cx = GRID_W / 2;
+    const cz = GRID_D / 2;
+
+    camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+    camera.position.set(cx + maxDim * 1.4, maxDim * 1.4, cz + maxDim * 1.4);
+    camera.lookAt(cx, 0.5, cz);
 
     renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false, powerPreference:'high-performance' });
     renderer.setSize(w, h);
@@ -175,6 +188,16 @@ function initThreeEngine() {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     container.appendChild(renderer.domElement);
+
+    // Three.js OrbitControls
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(cx, 0.5, cz);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2 - 0.02;
+    controls.minDistance = 3;
+    controls.maxDistance = 45;
+    controls.update();
 
     hemiLight = new THREE.HemisphereLight(0xffffff, 0x3d3d4e, 0.95);
     scene.add(hemiLight);
@@ -200,24 +223,12 @@ function initThreeEngine() {
     floorPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
 
     renderer.domElement.addEventListener('mousemove', e => {
-      if(isPanDragging){
-        const dx = e.clientX - panStartMouse.x;
-        const dy = e.clientY - panStartMouse.y;
-        panStartMouse = { x: e.clientX, y: e.clientY };
-        
-        const panFactor = 0.018 * currentZoom;
-        cameraOffset.x -= (dx - dy) * panFactor;
-        cameraOffset.z -= (-dx - dy) * panFactor;
-        updateCamera();
-        renderer.domElement.style.cursor = 'grabbing';
-        return;
-      }
-
       const grid = getGridFromMouse(e);
       if(!grid) return;
       ghostPos = grid;
 
       if(draggingItem && grid){
+        if(controls) controls.enabled = false;
         if(canPlace(draggingItem.type, grid.gx, grid.gz, draggingItem.rotation, draggingItem.id)){
           if(draggingItem.gx !== grid.gx || draggingItem.gy !== grid.gz){
             draggingItem.gx = grid.gx;
@@ -244,19 +255,13 @@ function initThreeEngine() {
         if(hoveredItem || wallIntersects.length > 0){
           renderer.domElement.style.cursor = 'pointer';
         } else {
-          renderer.domElement.style.cursor = 'grab';
+          renderer.domElement.style.cursor = 'default';
         }
       }
     });
 
     renderer.domElement.addEventListener('mousedown', e => {
-      if (ACCESS_MODE === 'view') {
-        if (e.button === 0) {
-          isPanDragging = true;
-          panStartMouse = { x: e.clientX, y: e.clientY };
-        }
-        return;
-      }
+      if (ACCESS_MODE === 'view') return;
 
       const grid = getGridFromMouse(e);
 
@@ -322,6 +327,7 @@ function initThreeEngine() {
           draggingItem = clickedItem;
           itemDragStartPos = { gx: clickedItem.gx, gy: clickedItem.gy };
           isItemMoved = false;
+          if (controls) controls.enabled = false;
           updateSelection();
           updateToolbar();
           const name = FURNITURE[clickedItem.type]?.name || 'Item';
@@ -332,8 +338,6 @@ function initThreeEngine() {
         } else {
           closeSurfacePopover();
           selectedId = null;
-          isPanDragging = true;
-          panStartMouse = { x: e.clientX, y: e.clientY };
           updateSelection();
           updateToolbar();
           setStatus('Ready');
@@ -354,10 +358,7 @@ function initThreeEngine() {
           isItemMoved = false;
           renderer.domElement.style.cursor = 'default';
         }
-        if(isPanDragging){
-          isPanDragging = false;
-          renderer.domElement.style.cursor = 'default';
-        }
+        if (controls) controls.enabled = true;
       }
     });
 
@@ -367,13 +368,6 @@ function initThreeEngine() {
     });
 
     renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
-
-    renderer.domElement.addEventListener('wheel', e => {
-      e.preventDefault();
-      const zoomFactor = e.deltaY > 0 ? 1.08 : 0.92;
-      currentZoom = Math.max(0.4, Math.min(2.5, currentZoom * zoomFactor));
-      updateCamera();
-    }, {passive:false});
 
     isWebGL = true;
     return true;
@@ -490,25 +484,23 @@ function buildRoom(){
 function updateCamera(){
   if(!camera) return;
   const maxDim = Math.max(GRID_W, GRID_D);
-  const frust = (maxDim * 0.75 + 2) * currentZoom;
+  const cx = GRID_W / 2;
+  const cz = GRID_D / 2;
   
-  if(container){
-    const rect = container.getBoundingClientRect();
-    const w = rect.width || window.innerWidth || 800;
-    const h = rect.height || (window.innerHeight - 52) || 600;
-    const aspect = w / h;
-    camera.left = -frust * aspect;
-    camera.right = frust * aspect;
-    camera.top = frust;
-    camera.bottom = -frust;
+  if(container && camera && camera.isPerspectiveCamera){
+    const w = container.clientWidth || window.innerWidth || 800;
+    const h = container.clientHeight || (window.innerHeight - 52) || 600;
+    const aspect = (w > 0 && h > 0) ? (w / h) : (16 / 9);
+    if (camera.aspect !== aspect) {
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+    }
   }
-  
-  const cx = GRID_W/2 + cameraOffset.x;
-  const cz = GRID_D/2 + cameraOffset.z;
 
-  camera.position.set(cx + maxDim * 1.5, maxDim * 1.8, cz + maxDim * 1.5);
-  camera.lookAt(cx, 0.5, cz);
-  camera.updateProjectionMatrix();
+  if (controls) {
+    controls.target.set(cx, 0.5, cz);
+    controls.update();
+  }
 
   if(dirLight){
     const shadowR = Math.max(30, maxDim * 3);
@@ -527,25 +519,20 @@ function updateCamera(){
    ANIME.JS V4 COMPATIBILITY HELPER
    ═══════════════════════════════════════════════════════════════ */
 function safeAnimate(targets, params) {
-  if (typeof anime === 'undefined') return;
+  if (typeof animeAnimate !== 'function') return;
   const opts = { ...params };
   if (opts.easing && !opts.ease) opts.ease = opts.easing;
   try {
-    if (typeof anime.animate === 'function') {
-      return anime.animate(targets, opts);
-    } else if (typeof anime === 'function') {
-      return anime({ targets, ...params });
-    }
+    return animeAnimate(targets, opts);
   } catch (err) {
     console.warn('Anime.js animation fallback:', err);
   }
 }
 
 function safeStagger(val, options) {
-  if (typeof anime === 'undefined') return 0;
   try {
-    if (typeof anime.stagger === 'function') {
-      return anime.stagger(val, options);
+    if (typeof stagger === 'function') {
+      return stagger(val, options);
     }
   } catch (_) {}
   return 0;
@@ -1153,14 +1140,14 @@ function getRotDims(type, rotation){
 }
 
 function canPlace(type, gx, gz, rot, excludeId){
-  const {gw,gd} = getRotDims(type, rot);
-  if(gx<0||gz<0||gx+gw>GRID_W||gz+gd>GRID_D) return false;
-  for(const item of state.items){
-    if(item.id===excludeId) continue;
-    const d = getRotDims(item.type, item.rotation);
-    if(gx<item.gx+d.gw && gx+gw>item.gx && gz<item.gy+d.gd && gz+gd>item.gy) return false;
-  }
-  return true;
+  return !checkAABBCollision(
+    { type, gx, gy: gz, rotation: rot },
+    state.items,
+    FURNITURE,
+    GRID_W,
+    GRID_D,
+    excludeId
+  );
 }
 
 function getItemAt(gx, gz){
@@ -1282,7 +1269,7 @@ function buildSidebar(){
 
   el.innerHTML = h;
 
-  if (typeof anime !== 'undefined') {
+  if (typeof animeAnimate === 'function') {
     safeAnimate(el.querySelectorAll('.catalog-item, .section-title'), {
       opacity: [0, 1],
       translateY: [15, 0],
@@ -1326,8 +1313,8 @@ function showToast(msg){
   if(!el) return;
   el.textContent=msg; el.classList.add('show');
   
-  if (typeof anime !== 'undefined') {
-    if (typeof anime.remove === 'function') anime.remove(el);
+  if (typeof animeRemove === 'function') {
+    animeRemove(el);
     safeAnimate(el, {
       translateY: [35, 0],
       opacity: [0, 1],
@@ -1356,7 +1343,7 @@ function showToast(msg){
 // Global Micro-Animations for Room Decorator Buttons & Controls
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.icon-btn, .back-btn, .catalog-item');
-  if (btn && typeof anime !== 'undefined') {
+  if (btn && typeof animeAnimate === 'function') {
     safeAnimate(btn, {
       scale: [0.92, 1],
       duration: 300,
@@ -1366,20 +1353,26 @@ document.addEventListener('click', (e) => {
 });
 
 function onResize(){
-  if(isWebGL && renderer && camera) {
-    const rect = container.getBoundingClientRect();
-    const w = rect.width || window.innerWidth || 800;
-    const h = rect.height || (window.innerHeight - 52) || 600;
-    renderer.setSize(w, h);
-    updateCamera();
+  if(isWebGL && renderer && camera && container) {
+    const w = container.clientWidth || window.innerWidth || 800;
+    const h = container.clientHeight || (window.innerHeight - 52) || 600;
+    if (w > 0 && h > 0) {
+      renderer.setSize(w, h);
+      updateCamera();
+    }
   }
 }
 window.addEventListener('resize', onResize);
 
 function animate(){
-  requestAnimationFrame(animate);
-  if(isWebGL && renderer && scene && camera) {
-    renderer.render(scene, camera);
+  animFrameId = requestAnimationFrame(animate);
+  try {
+    if (controls) controls.update();
+    if (isWebGL && renderer && scene && camera) {
+      renderer.render(scene, camera);
+    }
+  } catch (err) {
+    console.warn('Render frame warning:', err);
   }
 }
 
@@ -1406,7 +1399,6 @@ function startApp() {
     }
   }
 
-  cameraOffset = { x: 0, z: 0 };
   currentZoom = 1.0;
   GRID_W = state.gridW || 8;
   GRID_D = state.gridD || 6;
@@ -1435,6 +1427,8 @@ function startApp() {
   const redoBtn = document.getElementById('redo-btn');
   const rotBtn = document.getElementById('rotate-btn');
   const delBtn = document.getElementById('delete-btn');
+  const exportBtn = document.getElementById('export-json-btn');
+  const importBtn = document.getElementById('import-json-btn');
 
   if(undoBtn) undoBtn.addEventListener('click', undo);
   if(redoBtn) redoBtn.addEventListener('click', redo);
@@ -1447,6 +1441,44 @@ function startApp() {
     else if(selectedId) rotateSelected();
   });
   if(delBtn) delBtn.addEventListener('click', ()=>{ if(selectedId) deleteSelected(); });
+
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      exportRoomLayoutJSON(state, ROOM_NAME);
+      showToast('Exported Room Layout JSON');
+    });
+  }
+
+  if (importBtn) {
+    importBtn.addEventListener('click', () => {
+      openJSONImportPicker(
+        (importedState) => {
+          state.gridW = importedState.gridW || state.gridW;
+          state.gridD = importedState.gridD || state.gridD;
+          GRID_W = state.gridW;
+          GRID_D = state.gridD;
+          state.floor = importedState.floor || state.floor;
+          state.leftWall = importedState.leftWall || state.leftWall;
+          state.rightWall = importedState.rightWall || state.rightWall;
+          state.items = importedState.items || [];
+          state.nextId = state.items.length + 1;
+          selectedId = null;
+          saveState();
+          updateCanvasResizersUI();
+          buildSidebar();
+          if (isWebGL) {
+            buildRoom();
+            rebuildItems();
+          } else {
+            renderCanvas2D();
+          }
+          pushHistory();
+          showToast(`Imported ${importedState.roomName || 'Layout'}`);
+        },
+        (err) => showToast(`Import error: ${err}`)
+      );
+    });
+  }
 
   if (initThreeEngine()) {
     buildRoom();
@@ -1462,6 +1494,11 @@ function startApp() {
     updateToolbar();
   }
 }
+
+// Memory Cleanup on Page Unload / Disposer
+window.addEventListener('beforeunload', () => {
+  disposeScene(scene, renderer, controls, animFrameId);
+});
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', startApp);
