@@ -182,9 +182,11 @@ function initThreeEngine() {
     dirLight.position.set(15, 24, 15);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.set(2048, 2048);
-    dirLight.shadow.camera.left = -22; dirLight.shadow.camera.right = 22;
-    dirLight.shadow.camera.top = 22; dirLight.shadow.camera.bottom = -22;
-    dirLight.shadow.camera.near = 0.5; dirLight.shadow.camera.far = 100;
+    dirLight.shadow.bias = -0.0005;
+    dirLight.shadow.normalBias = 0.02;
+    dirLight.shadow.camera.left = -30; dirLight.shadow.camera.right = 30;
+    dirLight.shadow.camera.top = 30; dirLight.shadow.camera.bottom = -30;
+    dirLight.shadow.camera.near = 0.5; dirLight.shadow.camera.far = 150;
     scene.add(dirLight);
 
     roomGroup = new THREE.Group(); scene.add(roomGroup);
@@ -495,13 +497,19 @@ function updateCamera(){
   const cx = GRID_W/2 + cameraOffset.x;
   const cz = GRID_D/2 + cameraOffset.z;
 
-  camera.position.set(cx + maxDim * 1.2, maxDim * 1.2, cz + maxDim * 1.2);
+  camera.position.set(cx + maxDim * 1.5, maxDim * 1.8, cz + maxDim * 1.5);
   camera.lookAt(cx, 0.5, cz);
   camera.updateProjectionMatrix();
 
   if(dirLight){
-    dirLight.position.set(cx + 10, 20, cz + 12);
+    const shadowR = Math.max(30, maxDim * 3);
+    dirLight.position.set(cx + 15, 25, cz + 15);
     dirLight.target.position.set(cx, 0, cz);
+    dirLight.shadow.camera.left = -shadowR;
+    dirLight.shadow.camera.right = shadowR;
+    dirLight.shadow.camera.top = shadowR;
+    dirLight.shadow.camera.bottom = -shadowR;
+    dirLight.shadow.camera.updateProjectionMatrix();
     if(dirLight.target.parent !== scene) scene.add(dirLight.target);
   }
 }
@@ -1287,6 +1295,8 @@ function startApp() {
     }
   }
 
+  cameraOffset = { x: 0, z: 0 };
+  currentZoom = 1.0;
   GRID_W = state.gridW || 8;
   GRID_D = state.gridD || 6;
 
@@ -1311,9 +1321,10 @@ function startApp() {
   if(delBtn) delBtn.addEventListener('click', ()=>{ if(selectedId) deleteSelected(); });
 
   if (initThreeEngine()) {
-    onResize();
     buildRoom();
     rebuildItems();
+    onResize();
+    updateCamera();
     pushHistory();
     updateToolbar();
     animate();
