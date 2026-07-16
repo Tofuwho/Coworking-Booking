@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────
-   JOBSTREET-STYLE MASTER-DETAIL WORKSPACE MANAGER & BOOKING ENGINE
+   STRICT RBAC ENGINE & JOBSTREET MASTER-DETAIL WORKSPACE PORTAL
    ───────────────────────────────────────────────────────── */
 const GRID = 40;
 const DESK_W = 60, DESK_H = 40;
@@ -10,6 +10,9 @@ let nextDeskNum = 1;
 let nextRoomNum = 1;
 let selectedTileId = null;
 let tileIdCounter = 0;
+
+// Role-Based Access Control State ('admin' vs 'user')
+let currentRole = localStorage.getItem('cw_role') || 'admin';
 
 let adminFilter = 'all';
 let customerFilter = 'all';
@@ -62,20 +65,34 @@ function showToast(msg) {
 }
 
 /* ─────────────────────────────────────────────────────────
-   View Switching (Admin vs Customer)
+   STRICT RBAC (ROLE-BASED ACCESS CONTROL) SWITCHER
 ───────────────────────────────────────────────────────── */
-const tabBtns = document.querySelectorAll('.tab-btn');
+const roleBtns = document.querySelectorAll('.tab-btn[data-role]');
 const views = document.querySelectorAll('.view-container');
 
-function switchView(name) {
-  tabBtns.forEach(b => {
-    const active = b.dataset.view === name;
+function switchRole(role) {
+  currentRole = role;
+  try { localStorage.setItem('cw_role', role); } catch(_) {}
+
+  roleBtns.forEach(b => {
+    const active = b.dataset.role === role;
     b.classList.toggle('active', active);
     b.setAttribute('aria-selected', active ? 'true' : 'false');
   });
 
+  const roleIndicator = document.getElementById('role-indicator');
+  const adminHeaderActions = document.getElementById('admin-header-actions');
+
+  if (role === 'admin') {
+    if (roleIndicator) roleIndicator.textContent = 'Admin Mode (Edit & Decorate)';
+    if (adminHeaderActions) adminHeaderActions.style.display = 'flex';
+  } else {
+    if (roleIndicator) roleIndicator.textContent = 'User Mode (View & Reserve)';
+    if (adminHeaderActions) adminHeaderActions.style.display = 'none';
+  }
+
   views.forEach(v => {
-    const isTarget = v.id === 'view-' + name;
+    const isTarget = (role === 'admin' && v.id === 'view-admin') || (role === 'user' && v.id === 'view-customer');
     v.classList.toggle('active', isTarget);
   });
 
@@ -83,8 +100,8 @@ function switchView(name) {
   render();
 }
 
-tabBtns.forEach(btn => {
-  btn.addEventListener('click', () => switchView(btn.dataset.view));
+roleBtns.forEach(btn => {
+  btn.addEventListener('click', () => switchRole(btn.dataset.role));
 });
 
 /* ─────────────────────────────────────────────────────────
@@ -96,13 +113,6 @@ function dims(type) {
   return type === 'desk'
     ? { width: DESK_W, height: DESK_H }
     : { width: ROOM_W, height: ROOM_H };
-}
-
-function overlaps(x, y, w, h, excludeId) {
-  return tiles.some(t => {
-    if (t.id === excludeId) return false;
-    return x < t.x + t.width && x + w > t.x && y < t.y + t.height && y + h > t.y;
-  });
 }
 
 function hasDeco(tileId) {
@@ -120,6 +130,10 @@ function hasDeco(tileId) {
    Starter Preset Floor Plan
 ───────────────────────────────────────────────────────── */
 function loadPresetFloorPlan() {
+  if (currentRole !== 'admin') {
+    showToast('Unauthorized: Admin access required');
+    return;
+  }
   tiles = [
     { id: 'tile-1', type: 'desk', x: 80,  y: 80,  width: 60,  height: 40, status: 'available', label: 'Hot Desk 1', capacity: 1, description: 'Standard Ergonomic Desk with Dual Monitors and Power Outlets' },
     { id: 'tile-2', type: 'desk', x: 80,  y: 160, width: 60,  height: 40, status: 'available', label: 'Hot Desk 2', capacity: 1, description: 'Quiet Hot Desk near the Window' },
@@ -144,6 +158,10 @@ if (loadPresetBtn) loadPresetBtn.addEventListener('click', loadPresetFloorPlan);
 const clearFloorBtn = document.getElementById('clear-floor-btn');
 if (clearFloorBtn) {
   clearFloorBtn.addEventListener('click', () => {
+    if (currentRole !== 'admin') {
+      showToast('Unauthorized action');
+      return;
+    }
     if (tiles.length === 0) return;
     tiles = [];
     selectedTileId = null;
@@ -154,13 +172,14 @@ if (clearFloorBtn) {
 }
 
 /* ─────────────────────────────────────────────────────────
-   Add New Workspace Buttons (Admin)
+   Admin Workspace Additions
 ───────────────────────────────────────────────────────── */
 const addDeskBtn = document.getElementById('add-desk-btn');
 const addRoomBtn = document.getElementById('add-room-btn');
 
 if (addDeskBtn) {
   addDeskBtn.addEventListener('click', () => {
+    if (currentRole !== 'admin') return;
     tileIdCounter++;
     const id = 'tile-' + tileIdCounter;
     const label = 'Hot Desk ' + nextDeskNum++;
@@ -176,6 +195,7 @@ if (addDeskBtn) {
 
 if (addRoomBtn) {
   addRoomBtn.addEventListener('click', () => {
+    if (currentRole !== 'admin') return;
     tileIdCounter++;
     const id = 'tile-' + tileIdCounter;
     const label = 'Meeting Room ' + nextRoomNum++;
@@ -232,12 +252,13 @@ document.querySelectorAll('.filter-chip[data-customer-filter]').forEach(btn => {
 ───────────────────────────────────────────────────────── */
 function render() {
   updateStats();
-  renderAdminCards();
-  renderAdminCanvas();
-  renderAdminDetail();
-  renderCustomerCards();
-  renderCustomerCanvas();
-  renderCustomerDetail();
+  if (currentRole === 'admin') {
+    renderAdminCards();
+    renderAdminDetail();
+  } else {
+    renderCustomerCards();
+    renderCustomerDetail();
+  }
 }
 
 /* ── ADMIN: Master Feed Cards ────────────────────────────── */
@@ -275,63 +296,25 @@ function renderAdminCards() {
           ${t.status === 'booked' ? 'Reserved' : 'Available'}
         </span>
         <span>Capacity: ${t.capacity || (t.type === 'room' ? 6 : 1)}</span>
-        ${isDeco ? `<span class="badge-3d"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></polygon> 3D</span>` : ''}
+        ${t.type === 'room' ? `<span class="badge-3d" title="Click to Decorate 3D"><svg viewBox="0 0 24 24"><path d="M12 2l10 6.5v7L12 22 2 15.5v-7L12 2z"/><path d="M12 22v-9.5"/><path d="M22 8.5l-10 5-10-5"/></svg> ${isDeco ? 'Decorated 3D' : 'Decorate 3D'}</span>` : ''}
       </div>
     `;
+
+    const badge3d = card.querySelector('.badge-3d');
+    if (badge3d) {
+      badge3d.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.location.href = `room-decorator.html?room=${encodeURIComponent(t.id)}&name=${encodeURIComponent(t.label)}&mode=edit`;
+      });
+    }
 
     card.addEventListener('click', () => {
       selectedTileId = t.id;
       renderAdminCards();
-      renderAdminCanvas();
       renderAdminDetail();
     });
 
     feed.appendChild(card);
-  });
-}
-
-/* ── ADMIN: Visual Floor Canvas ──────────────────────────── */
-function renderAdminCanvas() {
-  const adminCanvas = document.getElementById('admin-canvas');
-  if (!adminCanvas) return;
-  adminCanvas.querySelectorAll('.tile').forEach(el => el.remove());
-
-  tiles.forEach(t => {
-    const el = document.createElement('div');
-    const isSel = t.id === selectedTileId;
-    el.className = 'tile type-' + t.type + (t.status === 'booked' ? ' status-booked' : '') + (isSel ? ' selected' : '');
-    el.style.left = t.x + 'px';
-    el.style.top = t.y + 'px';
-    el.style.width = t.width + 'px';
-    el.style.height = t.height + 'px';
-
-    const labelSpan = document.createElement('span');
-    labelSpan.textContent = t.label;
-    el.appendChild(labelSpan);
-
-    if (t.type === 'room') {
-      if (hasDeco(t.id)) {
-        const badge = document.createElement('span');
-        badge.innerHTML = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> 3D';
-        badge.style.cssText = 'position:absolute;bottom:3px;left:5px;font-size:9px;font-weight:600;display:flex;align-items:center;gap:2px;background:rgba(0,0,0,0.4);padding:1px 5px;border-radius:4px;';
-        el.appendChild(badge);
-      }
-
-      el.addEventListener('dblclick', (e) => {
-        e.stopPropagation();
-        window.location.href = 'room-decorator.html?room=' + encodeURIComponent(t.id) + '&name=' + encodeURIComponent(t.label);
-      });
-    }
-
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      selectedTileId = t.id;
-      renderAdminCards();
-      renderAdminCanvas();
-      renderAdminDetail();
-    });
-
-    adminCanvas.appendChild(el);
   });
 }
 
@@ -353,7 +336,7 @@ function renderAdminDetail() {
   const titleEl = document.getElementById('detail-title');
   const typeBadge = document.getElementById('detail-type-badge');
   const coordsEl = document.getElementById('detail-coords');
-  const launch3DBtn = document.getElementById('detail-launch-3d');
+  const admin3DBtn = document.getElementById('admin-begin-3d-btn');
 
   const editLabel = document.getElementById('edit-label');
   const editType = document.getElementById('edit-type');
@@ -362,17 +345,18 @@ function renderAdminDetail() {
   const editDesc = document.getElementById('edit-description');
 
   if (titleEl) titleEl.textContent = t.label;
-  if (typeBadge) typeBadge.textContent = t.type === 'room' ? 'Private Meeting Room' : 'Hot Desk';
-  if (coordsEl) coordsEl.textContent = `Grid Coordinates: X ${t.x}px, Y ${t.y}px (${t.width}×${t.height}px)`;
+  if (typeBadge) typeBadge.textContent = t.type === 'room' ? 'Private Meeting Suite' : 'Hot Desk Spot';
+  if (coordsEl) coordsEl.textContent = `Workspace ID: ${t.id} · Category: ${t.type.toUpperCase()}`;
 
-  if (launch3DBtn) {
+  // Dedicated Admin Button: Begin 3D Decorating (mode=edit)
+  if (admin3DBtn) {
     if (t.type === 'room') {
-      launch3DBtn.style.display = 'inline-flex';
-      launch3DBtn.onclick = () => {
-        window.location.href = 'room-decorator.html?room=' + encodeURIComponent(t.id) + '&name=' + encodeURIComponent(t.label);
+      admin3DBtn.style.display = 'inline-flex';
+      admin3DBtn.onclick = () => {
+        window.location.href = `room-decorator.html?room=${encodeURIComponent(t.id)}&name=${encodeURIComponent(t.label)}&mode=edit`;
       };
     } else {
-      launch3DBtn.style.display = 'none';
+      admin3DBtn.style.display = 'none';
     }
   }
 
@@ -386,9 +370,9 @@ function renderAdminDetail() {
   const saveBtn = document.getElementById('save-spot-btn');
   if (saveBtn) {
     saveBtn.onclick = () => {
+      if (currentRole !== 'admin') return;
       if (editLabel && editLabel.value.trim()) t.label = editLabel.value.trim();
       if (editType) {
-        const oldType = t.type;
         t.type = editType.value;
         const d = dims(t.type);
         t.width = d.width; t.height = d.height;
@@ -407,6 +391,7 @@ function renderAdminDetail() {
   const dupBtn = document.getElementById('duplicate-spot-btn');
   if (dupBtn) {
     dupBtn.onclick = () => {
+      if (currentRole !== 'admin') return;
       tileIdCounter++;
       const dupId = 'tile-' + tileIdCounter;
       const dupLabel = t.label + ' (Copy)';
@@ -427,6 +412,7 @@ function renderAdminDetail() {
   const delBtn = document.getElementById('delete-spot-btn');
   if (delBtn) {
     delBtn.onclick = () => {
+      if (currentRole !== 'admin') return;
       const name = t.label;
       tiles = tiles.filter(ti => ti.id !== t.id);
       selectedTileId = null;
@@ -472,49 +458,25 @@ function renderCustomerCards() {
           ${t.status === 'booked' ? 'Reserved' : 'Available'}
         </span>
         <span>Seats: ${t.capacity || (t.type === 'room' ? 6 : 1)}</span>
-        ${isDeco ? `<span class="badge-3d"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></polygon> 3D Tour</span>` : ''}
+        ${t.type === 'room' ? `<span class="badge-3d" title="Click to View 3D Room Tour"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> View 3D</span>` : ''}
       </div>
     `;
+
+    const badge3d = card.querySelector('.badge-3d');
+    if (badge3d) {
+      badge3d.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.location.href = `room-decorator.html?room=${encodeURIComponent(t.id)}&name=${encodeURIComponent(t.label)}&mode=view`;
+      });
+    }
 
     card.addEventListener('click', () => {
       selectedTileId = t.id;
       renderCustomerCards();
-      renderCustomerCanvas();
       renderCustomerDetail();
     });
 
     feed.appendChild(card);
-  });
-}
-
-/* ── CUSTOMER: Visual Floor Canvas ────────────────────────── */
-function renderCustomerCanvas() {
-  const customerCanvas = document.getElementById('customer-canvas');
-  if (!customerCanvas) return;
-  customerCanvas.querySelectorAll('.tile').forEach(el => el.remove());
-
-  tiles.forEach(t => {
-    const el = document.createElement('div');
-    let statusClass = 'status-' + t.status;
-    if (t.id === selectedTileId) statusClass = 'status-selected';
-
-    el.className = 'tile ' + statusClass;
-    el.style.left = t.x + 'px';
-    el.style.top = t.y + 'px';
-    el.style.width = t.width + 'px';
-    el.style.height = t.height + 'px';
-    el.textContent = t.label;
-
-    if (t.status === 'available') {
-      el.addEventListener('click', () => {
-        selectedTileId = (selectedTileId === t.id) ? null : t.id;
-        renderCustomerCards();
-        renderCustomerCanvas();
-        renderCustomerDetail();
-      });
-    }
-
-    customerCanvas.appendChild(el);
   });
 }
 
@@ -537,7 +499,7 @@ function renderCustomerDetail() {
   const typeBadge = document.getElementById('cust-type-badge');
   const statusBadge = document.getElementById('cust-status-badge');
   const descEl = document.getElementById('cust-description');
-  const link3D = document.getElementById('cust-3d-link');
+  const user3DBtn = document.getElementById('user-view-3d-btn');
   const confirmBtn = document.getElementById('cust-confirm-btn');
 
   if (titleEl) titleEl.textContent = t.label;
@@ -548,12 +510,15 @@ function renderCustomerDetail() {
   }
   if (descEl) descEl.textContent = t.description || 'Modern ergonomic workspace spot with high-speed Internet and coffee amenities.';
 
-  if (link3D) {
+  // Dedicated User Button: View 3D Interactive Room (mode=view)
+  if (user3DBtn) {
     if (t.type === 'room') {
-      link3D.style.display = 'inline-flex';
-      link3D.href = 'room-decorator.html?room=' + encodeURIComponent(t.id) + '&name=' + encodeURIComponent(t.label);
+      user3DBtn.style.display = 'inline-flex';
+      user3DBtn.onclick = () => {
+        window.location.href = `room-decorator.html?room=${encodeURIComponent(t.id)}&name=${encodeURIComponent(t.label)}&mode=view`;
+      };
     } else {
-      link3D.style.display = 'none';
+      user3DBtn.style.display = 'none';
     }
   }
 
@@ -571,10 +536,10 @@ function renderCustomerDetail() {
   }
 }
 
-// Init
+// Initialization
 load();
 if (tiles.length === 0) {
   loadPresetFloorPlan();
 } else {
-  render();
+  switchRole(currentRole);
 }

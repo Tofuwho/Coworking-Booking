@@ -395,17 +395,26 @@ body {
 .badge-3d {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-size: 10px;
+  gap: 4px;
+  font-size: 11px;
   font-weight: 600;
-  color: #e0a0ff;
-  background: rgba(124,58,237,0.2);
-  padding: 1px 6px;
-  border-radius: 4px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  padding: 3px 8px;
+  border-radius: 6px;
   margin-left: auto;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.25);
+  box-shadow: 0 2px 8px rgba(124,58,237,0.3);
+  transition: all 0.15s;
 }
 
-.badge-3d svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2; }
+.badge-3d:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.badge-3d svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; }
 
 /* ── Right Column: Detail, Description & Edit Suite Panel (Index) */
 .detail-panel {
@@ -484,26 +493,37 @@ body {
 .decorate-3d-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
+  gap: 10px;
+  padding: 12px 22px;
   background: linear-gradient(135deg, #7c3aed, #6d28d9);
   color: #ffffff;
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 16px var(--accent-glow);
-  transition: all 0.18s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: 0 4px 20px var(--accent-glow);
+  transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+}
+
+.decorate-3d-btn.user-mode {
+  background: linear-gradient(135deg, #059669, #10b981);
+  box-shadow: 0 4px 20px rgba(16,185,129,0.35);
 }
 
 .decorate-3d-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 22px var(--accent-glow);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 28px var(--accent-glow);
+}
+
+.decorate-3d-btn.user-mode:hover {
+  box-shadow: 0 8px 28px rgba(16,185,129,0.5);
 }
 
 .decorate-3d-btn svg {
-  width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;
+  width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2;
 }
 
 .detail-section {

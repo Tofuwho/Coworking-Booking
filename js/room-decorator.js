@@ -32,6 +32,7 @@ let history = [], histIdx = -1;
 const params = new URLSearchParams(location.search);
 const ROOM_ID = params.get('room') || 'default-room';
 const ROOM_NAME = decodeURIComponent(params.get('name') || 'Room Decorator');
+const ACCESS_MODE = params.get('mode') || 'edit'; // 'edit' for Admin, 'view' for User
 const STATE_KEY = 'cw_room_' + ROOM_ID;
 
 let isWebGL = false;
@@ -249,6 +250,14 @@ function initThreeEngine() {
     });
 
     renderer.domElement.addEventListener('mousedown', e => {
+      if (ACCESS_MODE === 'view') {
+        if (e.button === 0) {
+          isPanDragging = true;
+          panStartMouse = { x: e.clientX, y: e.clientY };
+        }
+        return;
+      }
+
       const grid = getGridFromMouse(e);
 
       // Right Click -> Delete item or Cancel Placement
@@ -1302,6 +1311,23 @@ function startApp() {
 
   setupCanvasResizers();
   buildSidebar();
+
+  if (ACCESS_MODE === 'view') {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) sidebar.style.display = 'none';
+    
+    document.querySelectorAll('.canvas-resizer').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.toolbar-group').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.divider').forEach(el => el.style.display = 'none');
+    
+    const statusText = document.getElementById('status-text');
+    if (statusText) {
+      statusText.innerHTML = '👁️ 3D Virtual Tour (View Only)';
+      statusText.style.background = 'rgba(124, 58, 237, 0.2)';
+      statusText.style.color = '#c084fc';
+      statusText.style.border = '1px solid rgba(124, 58, 237, 0.4)';
+    }
+  }
 
   const undoBtn = document.getElementById('undo-btn');
   const redoBtn = document.getElementById('redo-btn');
