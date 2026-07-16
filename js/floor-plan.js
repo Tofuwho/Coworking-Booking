@@ -1,5 +1,6 @@
 /* ─────────────────────────────────────────────────────────
    STRICT RBAC ENGINE & JOBSTREET MASTER-DETAIL WORKSPACE PORTAL
+   WITH OOP BLOCKCHAIN SMART CONTRACT LEDGER INTEGRATION
    ───────────────────────────────────────────────────────── */
 const GRID = 40;
 const DESK_W = 60, DESK_H = 40;
@@ -53,6 +54,12 @@ function updateStats() {
   if (statDesks) statDesks.textContent = deskCount;
   if (statRooms) statRooms.textContent = roomCount;
   if (statBooked) statBooked.textContent = bookedCount;
+
+  // Update OOP Blockchain Block Height Badge Counter
+  const blockCounter = document.getElementById('block-height-counter');
+  if (blockCounter && window.coworkingChain) {
+    blockCounter.textContent = `Height ${window.coworkingChain.chain.length}`;
+  }
 }
 
 function showToast(msg) {
@@ -126,6 +133,14 @@ function hasDeco(tileId) {
   return false;
 }
 
+function getPriceForDuration(durationHours) {
+  const d = parseInt(durationHours) || 2;
+  if (d === 1) return 15;
+  if (d === 2) return 25;
+  if (d === 4) return 45;
+  return 80;
+}
+
 /* ─────────────────────────────────────────────────────────
    Starter Preset Floor Plan
 ───────────────────────────────────────────────────────── */
@@ -149,7 +164,11 @@ function loadPresetFloorPlan() {
   selectedTileId = 'tile-5';
   save();
   render();
-  showToast('Loaded Starter Layout');
+
+  if (window.coworkingChain) {
+    window.coworkingChain.addTransaction('PRESET_LOADED', 'floor-0', 'Starter Floor Plan', 'admin', { totalSpots: 7 });
+  }
+  showToast('Loaded Starter Layout & Mined Block');
 }
 
 const loadPresetBtn = document.getElementById('load-preset-floor-chip');
@@ -167,6 +186,9 @@ if (clearFloorBtn) {
     selectedTileId = null;
     save();
     render();
+    if (window.coworkingChain) {
+      window.coworkingChain.addTransaction('CLEAR_FLOOR', 'floor-0', 'Floor Cleared', 'admin');
+    }
     showToast('Cleared floor plan');
   });
 }
@@ -189,6 +211,10 @@ if (addDeskBtn) {
     selectedTileId = id;
     save();
     render();
+
+    if (window.coworkingChain) {
+      window.coworkingChain.addTransaction('CREATE_SPOT', id, label, 'admin', { type: 'desk' });
+    }
     showToast(`Created ${label}`);
   });
 }
@@ -205,6 +231,10 @@ if (addRoomBtn) {
     selectedTileId = id;
     save();
     render();
+
+    if (window.coworkingChain) {
+      window.coworkingChain.addTransaction('CREATE_SPOT', id, label, 'admin', { type: 'room' });
+    }
     showToast(`Created ${label}`);
   });
 }
@@ -304,6 +334,9 @@ function renderAdminCards() {
     if (badge3d) {
       badge3d.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (window.coworkingChain) {
+          window.coworkingChain.addTransaction('DECORATE_3D', t.id, t.label, 'admin');
+        }
         window.location.href = `room-decorator.html?room=${encodeURIComponent(t.id)}&name=${encodeURIComponent(t.label)}&mode=edit`;
       });
     }
@@ -348,11 +381,13 @@ function renderAdminDetail() {
   if (typeBadge) typeBadge.textContent = t.type === 'room' ? 'Private Meeting Suite' : 'Hot Desk Spot';
   if (coordsEl) coordsEl.textContent = `Workspace ID: ${t.id} · Category: ${t.type.toUpperCase()}`;
 
-  // Dedicated Admin Button: Begin 3D Decorating (mode=edit)
   if (admin3DBtn) {
     if (t.type === 'room') {
       admin3DBtn.style.display = 'inline-flex';
       admin3DBtn.onclick = () => {
+        if (window.coworkingChain) {
+          window.coworkingChain.addTransaction('DECORATE_3D', t.id, t.label, 'admin');
+        }
         window.location.href = `room-decorator.html?room=${encodeURIComponent(t.id)}&name=${encodeURIComponent(t.label)}&mode=edit`;
       };
     } else {
@@ -366,7 +401,7 @@ function renderAdminDetail() {
   if (editCapacity) editCapacity.value = t.capacity || (t.type === 'room' ? 6 : 1);
   if (editDesc) editDesc.value = t.description || '';
 
-  // Form Save Button
+  // Save Button
   const saveBtn = document.getElementById('save-spot-btn');
   if (saveBtn) {
     saveBtn.onclick = () => {
@@ -383,11 +418,14 @@ function renderAdminDetail() {
 
       save();
       render();
+      if (window.coworkingChain) {
+        window.coworkingChain.addTransaction('UPDATE_SPOT', t.id, t.label, 'admin', { capacity: t.capacity, status: t.status });
+      }
       showToast(`Saved changes for ${t.label}`);
     };
   }
 
-  // Form Duplicate Button
+  // Duplicate Button
   const dupBtn = document.getElementById('duplicate-spot-btn');
   if (dupBtn) {
     dupBtn.onclick = () => {
@@ -404,11 +442,14 @@ function renderAdminDetail() {
       selectedTileId = dupId;
       save();
       render();
+      if (window.coworkingChain) {
+        window.coworkingChain.addTransaction('DUPLICATE_SPOT', dupId, dupLabel, 'admin', { original: t.id });
+      }
       showToast(`Duplicated ${dupLabel}`);
     };
   }
 
-  // Form Delete Button
+  // Delete Button
   const delBtn = document.getElementById('delete-spot-btn');
   if (delBtn) {
     delBtn.onclick = () => {
@@ -418,6 +459,9 @@ function renderAdminDetail() {
       selectedTileId = null;
       save();
       render();
+      if (window.coworkingChain) {
+        window.coworkingChain.addTransaction('DELETE_SPOT', t.id, name, 'admin');
+      }
       showToast(`Deleted ${name}`);
     };
   }
@@ -510,7 +554,6 @@ function renderCustomerDetail() {
   }
   if (descEl) descEl.textContent = t.description || 'Modern ergonomic workspace spot with high-speed Internet and coffee amenities.';
 
-  // Dedicated User Button: View 3D Interactive Room (mode=view)
   if (user3DBtn) {
     if (t.type === 'room') {
       user3DBtn.style.display = 'inline-flex';
@@ -526,15 +569,114 @@ function renderCustomerDetail() {
     confirmBtn.disabled = t.status === 'booked';
     confirmBtn.onclick = () => {
       if (t.status === 'available') {
-        t.status = 'booked';
-        const name = t.label;
-        save();
-        render();
-        showToast(`Reserved ${name} successfully! 🎉`);
+        openBookingModal(t);
       }
     };
   }
 }
+
+/* ─────────────────────────────────────────────────────────
+   Glassmorphic Interactive Booking Modal Dialog
+───────────────────────────────────────────────────────── */
+function openBookingModal(tile) {
+  const modal = document.getElementById('booking-modal');
+  const workspaceName = document.getElementById('modal-workspace-name');
+  const workspaceInfo = document.getElementById('modal-workspace-info');
+  const priceVal = document.getElementById('modal-price-val');
+  const cryptoHash = document.getElementById('modal-crypto-hash');
+  const durationSelect = document.getElementById('cust-duration');
+
+  if (!modal) return;
+
+  const durationHours = durationSelect ? durationSelect.value : '2';
+  const price = getPriceForDuration(durationHours);
+
+  if (workspaceName) workspaceName.textContent = tile.label;
+  if (workspaceInfo) workspaceInfo.textContent = `${durationHours} Hours Duration · Seat Capacity: ${tile.capacity || 1} Person(s)`;
+  if (priceVal) priceVal.textContent = `$${price}.00 USD`;
+
+  if (cryptoHash && window.coworkingChain) {
+    const latest = window.coworkingChain.getLatestBlock();
+    cryptoHash.innerHTML = `Previous Block: <span class="block-hash">${latest.hash.substring(0, 16)}...</span><br>Status: Verification Pending Mining`;
+  }
+
+  modal.classList.add('active');
+
+  const closeBtn = document.getElementById('close-booking-modal');
+  const cancelBtn = document.getElementById('cancel-booking-btn');
+  const finalizeBtn = document.getElementById('finalize-booking-btn');
+
+  const closeModal = () => modal.classList.remove('active');
+
+  if (closeBtn) closeBtn.onclick = closeModal;
+  if (cancelBtn) cancelBtn.onclick = closeModal;
+
+  if (finalizeBtn) {
+    finalizeBtn.onclick = () => {
+      tile.status = 'booked';
+      save();
+      render();
+
+      let txHash = '';
+      if (window.coworkingChain) {
+        const tx = window.coworkingChain.addTransaction('BOOK_SPOT', tile.id, tile.label, 'user', {
+          duration: durationHours + ' hrs',
+          price: `$${price}.00`,
+          settledAt: new Date().toLocaleTimeString()
+        });
+        txHash = tx.hash;
+      }
+
+      closeModal();
+      showToast(`Reserved ${tile.label}! Block mined: ${txHash.substring(0, 10)}... ⛓️`);
+    };
+  }
+}
+
+/* ─────────────────────────────────────────────────────────
+   OOP Blockchain Ledger Explorer Modal
+───────────────────────────────────────────────────────── */
+function openBlockchainModal() {
+  const modal = document.getElementById('blockchain-modal');
+  const feed = document.getElementById('blockchain-ledger-feed');
+  const chainStatusText = document.getElementById('chain-status-text');
+  const totalBlocksText = document.getElementById('total-blocks-text');
+
+  if (!modal || !feed || !window.coworkingChain) return;
+
+  const isValid = window.coworkingChain.isChainValid();
+  if (chainStatusText) {
+    chainStatusText.textContent = isValid ? '🟢 Valid Cryptographic Ledger' : '🔴 Tampered Ledger Detected';
+    chainStatusText.style.color = isValid ? 'var(--success)' : 'var(--danger)';
+  }
+  if (totalBlocksText) totalBlocksText.textContent = window.coworkingChain.chain.length;
+
+  feed.innerHTML = '';
+
+  const blocks = [...window.coworkingChain.chain].reverse();
+  blocks.forEach(b => {
+    const card = document.createElement('div');
+    card.className = 'block-card';
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;color:var(--text);">
+        <strong>Block #${b.index}</strong>
+        <span style="color:var(--text-muted);">${new Date(b.timestamp).toLocaleTimeString()}</span>
+      </div>
+      <div>Hash: <span class="block-hash">${b.hash}</span></div>
+      <div>Prev: <span class="block-hash" style="color:var(--text-muted);">${b.previousHash}</span></div>
+      <div class="block-tx">Transactions (${b.transactions.length}): ${b.transactions.map(t => `<span style="color:var(--accent);">${t.action}</span> [${t.workspaceLabel}]`).join(', ')}</div>
+    `;
+    feed.appendChild(card);
+  });
+
+  modal.classList.add('active');
+
+  const closeBtn = document.getElementById('close-blockchain-modal');
+  if (closeBtn) closeBtn.onclick = () => modal.classList.remove('active');
+}
+
+const openChainBtn = document.getElementById('open-blockchain-btn');
+if (openChainBtn) openChainBtn.addEventListener('click', openBlockchainModal);
 
 // Initialization
 load();

@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Coworking Studio — Workspace Manager & Booking</title>
-  <meta name="description" content="Role-based coworking management platform with 3D room interior designer and customer booking portal">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <title>Coworking Studio — Workspace Manager & Smart Blockchain Booking</title>
+  <meta name="description" content="Role-based coworking management platform with 3D room interior designer and OOP blockchain smart contracts">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -35,6 +35,12 @@
     </nav>
 
     <div class="spacer"></div>
+
+    <!-- OOP Blockchain Verified Proof Pill -->
+    <div class="blockchain-badge" id="open-blockchain-btn" title="View OOP Immutable Ledger Blocks">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      <span>Blockchain Ledger: <strong id="block-height-counter">Height 1</strong></span>
+    </div>
 
     <!-- Live Workspace Stats Pill -->
     <div class="stats-pill" title="Live Workspace Overview">
@@ -91,7 +97,7 @@
 
         <div class="detail-content" id="admin-detail-content" style="display:none;">
           
-          <!-- Admin Detail Banner -->
+          <!-- Admin Ambient Hero Banner -->
           <div class="detail-hero">
             <div class="hero-info">
               <span class="hero-badge" id="detail-type-badge">Private Meeting Suite</span>
@@ -213,23 +219,29 @@
           </div>
 
           <div class="detail-section">
-            <h4 class="section-title">Reservation Options</h4>
+            <h4 class="section-title">Reservation Options & Hourly Rates</h4>
             <div class="form-grid">
               <div class="form-field">
-                <label for="cust-duration">Select Duration</label>
+                <label for="cust-duration">Select Booking Duration</label>
                 <select id="cust-duration">
-                  <option value="1">1 Hour</option>
-                  <option value="2" selected>2 Hours (Standard)</option>
-                  <option value="4">Half Day (4 Hours)</option>
-                  <option value="8">Full Day (8 Hours)</option>
+                  <option value="1">1 Hour ($15/hr)</option>
+                  <option value="2" selected>2 Hours ($25 - Standard Deal)</option>
+                  <option value="4">Half Day (4 Hours - $45)</option>
+                  <option value="8">Full Day (8 Hours - $80 Pass)</option>
                 </select>
+              </div>
+              <div class="form-field">
+                <label>Cryptographic Settlement</label>
+                <div style="font-size:12px;color:var(--success);padding:9px 12px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:7px;display:flex;align-items:center;gap:6px;">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> OOP Smart Contract Active
+                </div>
               </div>
             </div>
           </div>
 
           <div class="detail-actions">
             <button class="action-btn primary large" id="cust-confirm-btn">
-              <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Confirm Reservation
+              <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Reserve & Settle Smart Contract
             </button>
           </div>
 
@@ -240,8 +252,62 @@
 
   </main>
 
+  <!-- ── Interactive Glassmorphism Booking Confirmation Modal ──── -->
+  <div class="modal-overlay" id="booking-modal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <span class="modal-title">
+          <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Confirm Smart Contract Reservation
+        </span>
+        <button class="close-modal" id="close-booking-modal">&times;</button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:14px;color:var(--text);font-weight:600;" id="modal-workspace-name">Executive Room</div>
+        <div style="font-size:12px;color:var(--text-dim);" id="modal-workspace-info">2 Hours Booking · Capacity: 6 Persons</div>
+
+        <div class="price-summary-box">
+          <span class="price-label">Estimated Total Price:</span>
+          <span class="price-value" id="modal-price-val">$25.00</span>
+        </div>
+
+        <div style="font-size:11px;color:var(--text-muted);font-family:monospace;background:rgba(0,0,0,0.3);padding:10px;border-radius:6px;border:1px solid var(--border);" id="modal-crypto-hash">
+          Mining Smart Contract Block...
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:8px;">
+        <button class="action-btn secondary" id="cancel-booking-btn" style="flex:1;">Cancel</button>
+        <button class="action-btn primary" id="finalize-booking-btn" style="flex:2;">Mine & Settle Contract</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── OOP Blockchain Explorer Modal ──────────────────────────── -->
+  <div class="modal-overlay" id="blockchain-modal">
+    <div class="modal-dialog" style="max-width:680px;">
+      <div class="modal-header">
+        <span class="modal-title">
+          <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          OOP Blockchain Ledger Explorer
+        </span>
+        <button class="close-modal" id="close-blockchain-modal">&times;</button>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:8px;font-size:12px;">
+        <span>Status: <strong style="color:var(--success);" id="chain-status-text">🟢 Valid Cryptographic Ledger</strong></span>
+        <span>Total Blocks: <strong id="total-blocks-text" style="color:var(--accent);">1</strong></span>
+      </div>
+
+      <!-- Scrollable Block Ledger Feed -->
+      <div style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px;" id="blockchain-ledger-feed"></div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
+  <script src="js/blockchain.js"></script>
   <script src="js/floor-plan.js"></script>
 </body>
 </html>
