@@ -806,3 +806,6 @@ if (tiles.length === 0) {
 } else {
   switchRole(currentRole);
 }
+
+// Reveal page after init (anti-FOUC)
+document.body.classList.add('ready');

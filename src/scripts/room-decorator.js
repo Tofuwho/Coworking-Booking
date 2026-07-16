@@ -185,7 +185,7 @@ function initThreeEngine() {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
 
     container.appendChild(renderer.domElement);
 
@@ -1493,6 +1493,9 @@ function startApp() {
     pushHistory();
     updateToolbar();
   }
+
+  // Reveal page after init (anti-FOUC)
+  document.body.classList.add('ready');
 }
 
 // Memory Cleanup on Page Unload / Disposer
