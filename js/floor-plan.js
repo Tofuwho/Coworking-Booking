@@ -42,6 +42,55 @@ function load() {
   } catch (_) {}
 }
 
+/* ─────────────────────────────────────────────────────────
+   ANIME.JS V4 COMPATIBILITY HELPER
+───────────────────────────────────────────────────────── */
+function safeAnimate(targets, params) {
+  if (typeof anime === 'undefined') return;
+  const opts = { ...params };
+  if (opts.easing && !opts.ease) opts.ease = opts.easing;
+
+  try {
+    if (typeof anime.animate === 'function') {
+      return anime.animate(targets, opts);
+    } else if (typeof anime === 'function') {
+      return anime({ targets, ...params });
+    }
+  } catch (err) {
+    console.warn('Anime.js animation fallback:', err);
+  }
+}
+
+function safeStagger(val, options) {
+  if (typeof anime === 'undefined') return 0;
+  try {
+    if (typeof anime.stagger === 'function') {
+      return anime.stagger(val, options);
+    }
+  } catch (_) {}
+  return 0;
+}
+
+function animateCounter(el, targetVal) {
+  if (!el) return;
+  const currentVal = parseInt(el.textContent) || 0;
+  if (currentVal === targetVal && el._hasAnimated) return;
+  el._hasAnimated = true;
+  if (typeof anime !== 'undefined') {
+    const obj = { val: currentVal };
+    safeAnimate(obj, {
+      val: targetVal,
+      round: 1,
+      duration: 650,
+      ease: 'outExpo',
+      onUpdate: () => { el.textContent = Math.round(obj.val); },
+      update: () => { el.textContent = Math.round(obj.val); }
+    });
+  } else {
+    el.textContent = targetVal;
+  }
+}
+
 function updateStats() {
   const statDesks = document.getElementById('stat-desks');
   const statRooms = document.getElementById('stat-rooms');
@@ -51,9 +100,9 @@ function updateStats() {
   const roomCount = tiles.filter(t => t.type === 'room').length;
   const bookedCount = tiles.filter(t => t.status === 'booked').length;
 
-  if (statDesks) statDesks.textContent = deskCount;
-  if (statRooms) statRooms.textContent = roomCount;
-  if (statBooked) statBooked.textContent = bookedCount;
+  animateCounter(statDesks, deskCount);
+  animateCounter(statRooms, roomCount);
+  animateCounter(statBooked, bookedCount);
 
   // Update OOP Blockchain Block Height Badge Counter
   const blockCounter = document.getElementById('block-height-counter');
@@ -67,8 +116,33 @@ function showToast(msg) {
   if (!el) return;
   el.textContent = msg;
   el.classList.add('show');
-  clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove('show'), 2200);
+
+  if (typeof anime !== 'undefined') {
+    if (typeof anime.remove === 'function') anime.remove(el);
+    safeAnimate(el, {
+      translateY: [35, 0],
+      opacity: [0, 1],
+      scale: [0.88, 1],
+      duration: 450,
+      ease: 'outQuint'
+    });
+
+    clearTimeout(el._t);
+    el._t = setTimeout(() => {
+      safeAnimate(el, {
+        translateY: [0, 20],
+        opacity: [1, 0],
+        scale: [1, 0.9],
+        duration: 350,
+        ease: 'inCubic',
+        onComplete: () => el.classList.remove('show'),
+        complete: () => el.classList.remove('show')
+      });
+    }, 2200);
+  } else {
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove('show'), 2200);
+  }
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -85,6 +159,13 @@ function switchRole(role) {
     const active = b.dataset.role === role;
     b.classList.toggle('active', active);
     b.setAttribute('aria-selected', active ? 'true' : 'false');
+    if (active && typeof anime !== 'undefined') {
+      safeAnimate(b, {
+        scale: [0.94, 1],
+        duration: 350,
+        ease: 'outQuint'
+      });
+    }
   });
 
   const roleIndicator = document.getElementById('role-indicator');
@@ -100,7 +181,20 @@ function switchRole(role) {
 
   views.forEach(v => {
     const isTarget = (role === 'admin' && v.id === 'view-admin') || (role === 'user' && v.id === 'view-customer');
-    v.classList.toggle('active', isTarget);
+    if (isTarget) {
+      v.classList.add('active');
+      if (typeof anime !== 'undefined') {
+        safeAnimate(v, {
+          opacity: [0, 1],
+          translateY: [16, 0],
+          scale: [0.98, 1],
+          duration: 400,
+          ease: 'outCubic'
+        });
+      }
+    } else {
+      v.classList.remove('active');
+    }
   });
 
   selectedTileId = null;
@@ -349,6 +443,17 @@ function renderAdminCards() {
 
     feed.appendChild(card);
   });
+
+  if (typeof anime !== 'undefined') {
+    safeAnimate(feed.querySelectorAll('.spot-card'), {
+      opacity: [0, 1],
+      translateY: [24, 0],
+      scale: [0.94, 1],
+      delay: safeStagger(45),
+      duration: 500,
+      ease: 'outQuint'
+    });
+  }
 }
 
 /* ── ADMIN: Detail Description & Form Panel ───────────────── */
@@ -364,7 +469,18 @@ function renderAdminDetail() {
 
   const t = tiles.find(ti => ti.id === selectedTileId);
   if (emptyDetail) emptyDetail.style.display = 'none';
-  if (detailContent) detailContent.style.display = 'flex';
+  if (detailContent) {
+    detailContent.style.display = 'flex';
+    if (typeof anime !== 'undefined') {
+      safeAnimate(detailContent.children, {
+        opacity: [0, 1],
+        translateX: [25, 0],
+        delay: safeStagger(55),
+        duration: 550,
+        ease: 'outQuint'
+      });
+    }
+  }
 
   const titleEl = document.getElementById('detail-title');
   const typeBadge = document.getElementById('detail-type-badge');
@@ -522,6 +638,17 @@ function renderCustomerCards() {
 
     feed.appendChild(card);
   });
+
+  if (typeof anime !== 'undefined') {
+    safeAnimate(feed.querySelectorAll('.spot-card'), {
+      opacity: [0, 1],
+      translateY: [24, 0],
+      scale: [0.94, 1],
+      delay: safeStagger(45),
+      duration: 500,
+      ease: 'outQuint'
+    });
+  }
 }
 
 /* ── CUSTOMER: Detail & Booking CTA Panel ─────────────────── */
@@ -537,7 +664,18 @@ function renderCustomerDetail() {
 
   const t = tiles.find(ti => ti.id === selectedTileId);
   if (emptyDetail) emptyDetail.style.display = 'none';
-  if (detailContent) detailContent.style.display = 'flex';
+  if (detailContent) {
+    detailContent.style.display = 'flex';
+    if (typeof anime !== 'undefined') {
+      safeAnimate(detailContent.children, {
+        opacity: [0, 1],
+        translateX: [25, 0],
+        delay: safeStagger(55),
+        duration: 550,
+        ease: 'outQuint'
+      });
+    }
+  }
 
   const titleEl = document.getElementById('cust-title');
   const typeBadge = document.getElementById('cust-type-badge');
@@ -576,14 +714,13 @@ function renderCustomerDetail() {
 }
 
 /* ─────────────────────────────────────────────────────────
-   Glassmorphic Interactive Booking Modal Dialog
+   Interactive Glassmorphism Booking Modal Dialog
 ───────────────────────────────────────────────────────── */
 function openBookingModal(tile) {
   const modal = document.getElementById('booking-modal');
   const workspaceName = document.getElementById('modal-workspace-name');
   const workspaceInfo = document.getElementById('modal-workspace-info');
   const priceVal = document.getElementById('modal-price-val');
-  const cryptoHash = document.getElementById('modal-crypto-hash');
   const durationSelect = document.getElementById('cust-duration');
 
   if (!modal) return;
@@ -592,21 +729,50 @@ function openBookingModal(tile) {
   const price = getPriceForDuration(durationHours);
 
   if (workspaceName) workspaceName.textContent = tile.label;
-  if (workspaceInfo) workspaceInfo.textContent = `${durationHours} Hours Duration · Seat Capacity: ${tile.capacity || 1} Person(s)`;
+  if (workspaceInfo) workspaceInfo.textContent = `${durationHours} Hours Duration · Capacity: ${tile.capacity || 1} Person(s)`;
   if (priceVal) priceVal.textContent = `$${price}.00 USD`;
 
-  if (cryptoHash && window.coworkingChain) {
-    const latest = window.coworkingChain.getLatestBlock();
-    cryptoHash.innerHTML = `Previous Block: <span class="block-hash">${latest.hash.substring(0, 16)}...</span><br>Status: Verification Pending Mining`;
-  }
-
   modal.classList.add('active');
+  const dialog = modal.querySelector('.modal-dialog');
+
+  if (typeof anime !== 'undefined') {
+    safeAnimate(modal, {
+      opacity: [0, 1],
+      duration: 250,
+      ease: 'outQuad'
+    });
+    safeAnimate(dialog, {
+      scale: [0.82, 1],
+      translateY: [30, 0],
+      opacity: [0, 1],
+      duration: 500,
+      ease: 'outQuint'
+    });
+  }
 
   const closeBtn = document.getElementById('close-booking-modal');
   const cancelBtn = document.getElementById('cancel-booking-btn');
   const finalizeBtn = document.getElementById('finalize-booking-btn');
 
-  const closeModal = () => modal.classList.remove('active');
+  const closeModal = () => {
+    if (typeof anime !== 'undefined') {
+      safeAnimate(dialog, {
+        scale: [1, 0.9],
+        opacity: [1, 0],
+        duration: 200,
+        ease: 'inQuad'
+      });
+      safeAnimate(modal, {
+        opacity: [1, 0],
+        duration: 250,
+        ease: 'inQuad',
+        onComplete: () => modal.classList.remove('active'),
+        complete: () => modal.classList.remove('active')
+      });
+    } else {
+      modal.classList.remove('active');
+    }
+  };
 
   if (closeBtn) closeBtn.onclick = closeModal;
   if (cancelBtn) cancelBtn.onclick = closeModal;
@@ -616,67 +782,23 @@ function openBookingModal(tile) {
       tile.status = 'booked';
       save();
       render();
-
-      let txHash = '';
-      if (window.coworkingChain) {
-        const tx = window.coworkingChain.addTransaction('BOOK_SPOT', tile.id, tile.label, 'user', {
-          duration: durationHours + ' hrs',
-          price: `$${price}.00`,
-          settledAt: new Date().toLocaleTimeString()
-        });
-        txHash = tx.hash;
-      }
-
       closeModal();
-      showToast(`Reserved ${tile.label}! Block mined: ${txHash.substring(0, 10)}... ⛓️`);
+      showToast(`Reserved ${tile.label} successfully! 🎉`);
     };
   }
 }
 
-/* ─────────────────────────────────────────────────────────
-   OOP Blockchain Ledger Explorer Modal
-───────────────────────────────────────────────────────── */
-function openBlockchainModal() {
-  const modal = document.getElementById('blockchain-modal');
-  const feed = document.getElementById('blockchain-ledger-feed');
-  const chainStatusText = document.getElementById('chain-status-text');
-  const totalBlocksText = document.getElementById('total-blocks-text');
-
-  if (!modal || !feed || !window.coworkingChain) return;
-
-  const isValid = window.coworkingChain.isChainValid();
-  if (chainStatusText) {
-    chainStatusText.textContent = isValid ? '🟢 Valid Cryptographic Ledger' : '🔴 Tampered Ledger Detected';
-    chainStatusText.style.color = isValid ? 'var(--success)' : 'var(--danger)';
+// Global Micro-Animations for Interactive Buttons
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.add-btn, .action-btn, .filter-chip, .decorate-3d-btn');
+  if (btn && typeof anime !== 'undefined') {
+    safeAnimate(btn, {
+      scale: [0.94, 1],
+      duration: 300,
+      ease: 'outQuint'
+    });
   }
-  if (totalBlocksText) totalBlocksText.textContent = window.coworkingChain.chain.length;
-
-  feed.innerHTML = '';
-
-  const blocks = [...window.coworkingChain.chain].reverse();
-  blocks.forEach(b => {
-    const card = document.createElement('div');
-    card.className = 'block-card';
-    card.innerHTML = `
-      <div style="display:flex;justify-content:space-between;color:var(--text);">
-        <strong>Block #${b.index}</strong>
-        <span style="color:var(--text-muted);">${new Date(b.timestamp).toLocaleTimeString()}</span>
-      </div>
-      <div>Hash: <span class="block-hash">${b.hash}</span></div>
-      <div>Prev: <span class="block-hash" style="color:var(--text-muted);">${b.previousHash}</span></div>
-      <div class="block-tx">Transactions (${b.transactions.length}): ${b.transactions.map(t => `<span style="color:var(--accent);">${t.action}</span> [${t.workspaceLabel}]`).join(', ')}</div>
-    `;
-    feed.appendChild(card);
-  });
-
-  modal.classList.add('active');
-
-  const closeBtn = document.getElementById('close-blockchain-modal');
-  if (closeBtn) closeBtn.onclick = () => modal.classList.remove('active');
-}
-
-const openChainBtn = document.getElementById('open-blockchain-btn');
-if (openChainBtn) openChainBtn.addEventListener('click', openBlockchainModal);
+});
 
 // Initialization
 load();

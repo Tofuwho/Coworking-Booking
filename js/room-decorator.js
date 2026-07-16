@@ -154,7 +154,7 @@ function initThreeEngine() {
     if (!container) return false;
 
     scene = new THREE.Scene();
-    scene.background = new THREE.Color('#0c0c10');
+    scene.background = new THREE.Color('#eaf0f6');
 
     const rect = container.getBoundingClientRect();
     const w = rect.width || window.innerWidth || 800;
@@ -524,6 +524,34 @@ function updateCamera(){
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   ANIME.JS V4 COMPATIBILITY HELPER
+   ═══════════════════════════════════════════════════════════════ */
+function safeAnimate(targets, params) {
+  if (typeof anime === 'undefined') return;
+  const opts = { ...params };
+  if (opts.easing && !opts.ease) opts.ease = opts.easing;
+  try {
+    if (typeof anime.animate === 'function') {
+      return anime.animate(targets, opts);
+    } else if (typeof anime === 'function') {
+      return anime({ targets, ...params });
+    }
+  } catch (err) {
+    console.warn('Anime.js animation fallback:', err);
+  }
+}
+
+function safeStagger(val, options) {
+  if (typeof anime === 'undefined') return 0;
+  try {
+    if (typeof anime.stagger === 'function') {
+      return anime.stagger(val, options);
+    }
+  } catch (_) {}
+  return 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    SURFACE MATERIAL POPOVER (INTERACTIVE WALL & FLOOR CLICKING)
    ═══════════════════════════════════════════════════════════════ */
 function openSurfacePopover(type) {
@@ -575,11 +603,37 @@ function openSurfacePopover(type) {
   });
 
   popover.classList.add('active');
+  if (typeof anime !== 'undefined') {
+    safeAnimate(popover, {
+      scale: [0.8, 1],
+      opacity: [0, 1],
+      duration: 400,
+      ease: 'outQuint'
+    });
+    safeAnimate(swatchList.querySelectorAll('.swatch'), {
+      scale: [0, 1],
+      delay: safeStagger(25),
+      duration: 350,
+      ease: 'outBack'
+    });
+  }
 }
 
 function closeSurfacePopover() {
   const popover = document.getElementById('surface-popover');
-  if (popover) popover.classList.remove('active');
+  if (!popover || !popover.classList.contains('active')) return;
+  if (typeof anime !== 'undefined') {
+    safeAnimate(popover, {
+      scale: [1, 0.85],
+      opacity: [1, 0],
+      duration: 200,
+      ease: 'inQuad',
+      onComplete: () => popover.classList.remove('active'),
+      complete: () => popover.classList.remove('active')
+    });
+  } else {
+    popover.classList.remove('active');
+  }
 }
 
 const closeBtn = document.getElementById('close-surface-btn');
@@ -1228,6 +1282,17 @@ function buildSidebar(){
 
   el.innerHTML = h;
 
+  if (typeof anime !== 'undefined') {
+    safeAnimate(el.querySelectorAll('.catalog-item, .section-title'), {
+      opacity: [0, 1],
+      translateY: [15, 0],
+      scale: [0.96, 1],
+      delay: safeStagger(20),
+      duration: 450,
+      ease: 'outQuint'
+    });
+  }
+
   // Event bindings
   el.querySelectorAll('.catalog-item[data-preset]').forEach(btn => {
     btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
@@ -1260,8 +1325,45 @@ function showToast(msg){
   const el=document.getElementById('toast');
   if(!el) return;
   el.textContent=msg; el.classList.add('show');
-  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),1800);
+  
+  if (typeof anime !== 'undefined') {
+    if (typeof anime.remove === 'function') anime.remove(el);
+    safeAnimate(el, {
+      translateY: [35, 0],
+      opacity: [0, 1],
+      scale: [0.88, 1],
+      duration: 450,
+      ease: 'outQuint'
+    });
+
+    clearTimeout(el._t);
+    el._t = setTimeout(() => {
+      safeAnimate(el, {
+        translateY: [0, 20],
+        opacity: [1, 0],
+        scale: [1, 0.9],
+        duration: 350,
+        ease: 'inCubic',
+        onComplete: () => el.classList.remove('show'),
+        complete: () => el.classList.remove('show')
+      });
+    }, 1800);
+  } else {
+    clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),1800);
+  }
 }
+
+// Global Micro-Animations for Room Decorator Buttons & Controls
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.icon-btn, .back-btn, .catalog-item');
+  if (btn && typeof anime !== 'undefined') {
+    safeAnimate(btn, {
+      scale: [0.92, 1],
+      duration: 300,
+      ease: 'outQuint'
+    });
+  }
+});
 
 function onResize(){
   if(isWebGL && renderer && camera) {
