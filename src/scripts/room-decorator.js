@@ -202,7 +202,7 @@ function initThreeEngine() {
 
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 0.95;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
 
@@ -218,10 +218,10 @@ function initThreeEngine() {
     controls.maxDistance = 45;
     controls.update();
 
-    hemiLight = new THREE.HemisphereLight(0xffffff, 0x3d3d4e, 0.95);
+    hemiLight = new THREE.HemisphereLight(0xffffff, 0x3d3d4e, 0.55);
     scene.add(hemiLight);
 
-    dirLight = new THREE.DirectionalLight(0xffffff, 1.25);
+    dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
     dirLight.position.set(15, 24, 15);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.set(2048, 2048);
@@ -252,12 +252,12 @@ function initThreeEngine() {
       composer = new EffectComposer(renderer);
       composer.addPass(new RenderPass(scene, camera));
 
-      // Subtle bloom for soft glow on bright materials (lamps, glass, neon)
+      // Bloom pass tuned to threshold 1.0 so background and walls do NOT bloom into fog
       const bloomPass = new UnrealBloomPass(
         new THREE.Vector2(container.clientWidth, container.clientHeight),
-        0.15,  // strength — subtle glow
-        0.4,   // radius
-        0.85   // threshold — only very bright surfaces bloom
+        0.06,  // strength — subtle highlights only
+        0.25,  // radius
+        1.0    // threshold — threshold >= 1.0 prevents background/wall bloom fog
       );
       composer.addPass(bloomPass);
 
@@ -445,7 +445,7 @@ function buildRoom(){
       const isAlt = (x+z)%2===0;
       const col = isAlt ? fm.hex : fm.alt;
       const geo = new THREE.BoxGeometry(0.98, 0.06, 0.98);
-      const mat = new THREE.MeshStandardMaterial({color:col, roughness:0.45, metalness:0.08});
+      const mat = getFloorMaterial(state.floor, col);
       const tile = new THREE.Mesh(geo, mat);
       tile.position.set(x+0.5, -0.03, z+0.5);
       tile.receiveShadow = true;
@@ -460,28 +460,14 @@ function buildRoom(){
   roomGroup.add(subFloor);
 
   const lwGeo = new THREE.BoxGeometry(0.1, WALL_H, GRID_D);
-  const lwMat = new THREE.MeshStandardMaterial({
-    color: lwm.hex,
-    transparent: lwm.transparent || false,
-    opacity: lwm.opacity != null ? lwm.opacity : 1.0,
-    roughness: lwm.roughness != null ? lwm.roughness : 0.55,
-    metalness: lwm.metalness != null ? lwm.metalness : 0.02,
-    side: THREE.DoubleSide
-  });
+  const lwMat = getWallMaterial(state.leftWall, lwm.hex);
   leftWallMesh = new THREE.Mesh(lwGeo, lwMat);
   leftWallMesh.position.set(-0.05, WALL_H/2, GRID_D/2);
   leftWallMesh.receiveShadow = !lwm.transparent;
   roomGroup.add(leftWallMesh);
 
   const rwGeo = new THREE.BoxGeometry(GRID_W, WALL_H, 0.1);
-  const rwMat = new THREE.MeshStandardMaterial({
-    color: rwm.hex,
-    transparent: rwm.transparent || false,
-    opacity: rwm.opacity != null ? rwm.opacity : 1.0,
-    roughness: rwm.roughness != null ? rwm.roughness : 0.55,
-    metalness: rwm.metalness != null ? rwm.metalness : 0.02,
-    side: THREE.DoubleSide
-  });
+  const rwMat = getWallMaterial(state.rightWall, rwm.hex);
   rightWallMesh = new THREE.Mesh(rwGeo, rwMat);
   rightWallMesh.position.set(GRID_W/2, WALL_H/2, -0.05);
   rightWallMesh.receiveShadow = !rwm.transparent;
@@ -1590,6 +1576,12 @@ function enterFirstPerson() {
   camera.position.set(GRID_W / 2, FP_EYE_HEIGHT, GRID_D / 2);
   camera.lookAt(GRID_W / 2, FP_EYE_HEIGHT, 0);
 
+  fpControls.addEventListener('lock', () => {
+    // Hide overlay instructions when pointer is locked
+    const overlay = document.getElementById('fp-overlay');
+    if (overlay) overlay.classList.remove('active');
+  });
+
   fpControls.addEventListener('unlock', () => {
     // When pointer lock is lost, show the lock prompt again
     const overlay = document.getElementById('fp-overlay');
@@ -1604,10 +1596,6 @@ function enterFirstPerson() {
   // Show crosshair
   const crosshair = document.getElementById('fp-crosshair');
   if (crosshair) crosshair.classList.add('active');
-
-  // Show overlay
-  const overlay = document.getElementById('fp-overlay');
-  if (overlay) overlay.classList.add('active');
 
   // Update button state
   const btn = document.getElementById('walkthrough-btn');
@@ -1670,6 +1658,10 @@ function exitFirstPerson() {
 }
 
 function onFPKeyDown(e) {
+  // Hide instructions overlay on any movement key press
+  const overlay = document.getElementById('fp-overlay');
+  if (overlay) overlay.classList.remove('active');
+
   switch (e.code) {
     case 'KeyW': case 'ArrowUp': moveState.forward = true; break;
     case 'KeyS': case 'ArrowDown': moveState.backward = true; break;
