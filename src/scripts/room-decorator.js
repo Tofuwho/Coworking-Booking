@@ -1,6 +1,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { animate as animeAnimate, stagger, remove as animeRemove } from 'animejs';
 import { CATEGORIES, FLOOR_MATS, WALL_MATS, FURNITURE, PRESETS, SVG_ICONS } from './catalog-data.js';
 import { getFloorMaterial, getWallMaterial, getFurnitureMaterial } from './utils/materials.js';
@@ -28,6 +34,19 @@ let currentZoom = 1.0;
 let controls = null;
 let animFrameId = null;
 let gltfLoader = new GLTFLoader();
+let composer = null;
+let postProcessingEnabled = true;
+
+// First-person walkthrough mode
+let isFirstPerson = false;
+let fpControls = null;
+let moveState = { forward: false, backward: false, left: false, right: false };
+let savedOrbitState = null;
+const FP_SPEED = 3.0;
+const FP_EYE_HEIGHT = 1.6;
+const fpVelocity = new THREE.Vector3();
+const fpDirection = new THREE.Vector3();
+let fpClock = new THREE.Clock();
 
 let draggingItem = null;
 let itemDragStartPos = null;
@@ -213,10 +232,42 @@ function initThreeEngine() {
     dirLight.shadow.camera.near = 0.5; dirLight.shadow.camera.far = 150;
     scene.add(dirLight);
 
+    // ── HDRI Environment Map (async — scene renders immediately, upgrades when loaded)
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    pmremGenerator.compileEquirectangularShader();
+    new RGBELoader().load('/hdri/studio_small.hdr', (hdrTexture) => {
+      const envMap = pmremGenerator.fromEquirectangular(hdrTexture).texture;
+      scene.environment = envMap;
+      hdrTexture.dispose();
+      pmremGenerator.dispose();
+    });
+
     roomGroup = new THREE.Group(); scene.add(roomGroup);
     itemsGroup = new THREE.Group(); scene.add(itemsGroup);
     ghostGroup = new THREE.Group(); scene.add(ghostGroup);
     highlightGroup = new THREE.Group(); scene.add(highlightGroup);
+
+    // ── Post-Processing Pipeline ────────────────────────────────────
+    try {
+      composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene, camera));
+
+      // Subtle bloom for soft glow on bright materials (lamps, glass, neon)
+      const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(container.clientWidth, container.clientHeight),
+        0.15,  // strength — subtle glow
+        0.4,   // radius
+        0.85   // threshold — only very bright surfaces bloom
+      );
+      composer.addPass(bloomPass);
+
+      // OutputPass for correct color space output
+      composer.addPass(new OutputPass());
+    } catch (e) {
+      console.warn('Post-processing setup failed, using direct rendering:', e);
+      composer = null;
+      postProcessingEnabled = false;
+    }
 
     raycaster = new THREE.Raycaster();
     mouse = new THREE.Vector2();
@@ -682,12 +733,118 @@ function updateCanvasResizersUI() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   FURNITURE MESH (3D WEBGL)
+   GLTF MODEL CACHE — loads once, clones per instance
+   ═══════════════════════════════════════════════════════════════ */
+const modelCache = new Map();       // modelUrl → THREE.Group (template)
+const modelLoadingSet = new Set();  // URLs currently being fetched
+
+function loadAndCacheModel(modelUrl) {
+  if (modelCache.has(modelUrl) || modelLoadingSet.has(modelUrl)) return;
+  modelLoadingSet.add(modelUrl);
+  gltfLoader.load(modelUrl, (gltf) => {
+    const template = gltf.scene;
+    template.traverse(child => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    modelCache.set(modelUrl, template);
+    modelLoadingSet.delete(modelUrl);
+    // Rebuild so any items waiting for this model get the real mesh
+    rebuildItems();
+  }, undefined, (err) => {
+    console.warn(`Failed to load model ${modelUrl}:`, err);
+    modelLoadingSet.delete(modelUrl);
+  });
+}
+
+function createGLTFMesh(def, gx, gz, rotation, opacity) {
+  const modelUrl = def.modelUrl;
+  const template = modelCache.get(modelUrl);
+  if (!template) {
+    // Kick off async load; caller will use primitive fallback for now
+    loadAndCacheModel(modelUrl);
+    return null;
+  }
+
+  const clone = template.clone(true);
+  // Deep-clone materials so instances don't share mutation
+  clone.traverse(child => {
+    if (child.isMesh && child.material) {
+      child.material = child.material.clone();
+      if (opacity != null && opacity < 1) {
+        child.material.transparent = true;
+        child.material.opacity = opacity;
+      }
+    }
+  });
+
+  // Compute model AABB and scale to fit the grid cell dimensions
+  const box = new THREE.Box3().setFromObject(clone);
+  const modelSize = box.getSize(new THREE.Vector3());
+  const modelCenter = box.getCenter(new THREE.Vector3());
+
+  const targetW = def.gw;
+  const targetD = def.gd;
+  const scaleX = modelSize.x > 0.001 ? targetW / modelSize.x : 1;
+  const scaleZ = modelSize.z > 0.001 ? targetD / modelSize.z : 1;
+  const uniformScale = Math.min(scaleX, scaleZ);
+  clone.scale.setScalar(uniformScale);
+
+  // Recalculate after scale
+  const scaledBox = new THREE.Box3().setFromObject(clone);
+  const scaledSize = scaledBox.getSize(new THREE.Vector3());
+  const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+
+  // Center the model within the grid cell and sit it on the floor
+  let gw = def.gw, gd = def.gd;
+  const rotSteps = ((rotation||0)/90)%4;
+  for(let i=0;i<rotSteps;i++){ const t=gw; gw=gd; gd=t; }
+
+  const wrapper = new THREE.Group();
+  clone.position.set(
+    -scaledCenter.x + gw / 2,
+    -scaledBox.min.y,
+    -scaledCenter.z + gd / 2
+  );
+  wrapper.add(clone);
+
+  // Apply rotation around the center of the grid footprint
+  if (rotSteps > 0) {
+    const pivot = new THREE.Group();
+    clone.position.x -= gw / 2;
+    clone.position.z -= gd / 2;
+    pivot.add(clone);
+    pivot.rotation.y = -rotSteps * (Math.PI / 2);
+    pivot.position.set(gw / 2, 0, gd / 2);
+    wrapper.add(pivot);
+  }
+
+  wrapper.position.set(gx, 0, gz);
+  wrapper.userData = { type: null, gx, gz, gw, gd, rotation: rotation||0 };
+  return wrapper;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FURNITURE MESH (3D WEBGL) — GLTF models with primitive fallback
    ═══════════════════════════════════════════════════════════════ */
 function createFurnitureMesh(type, gx, gz, rotation, opacity){
   if(typeof FURNITURE === 'undefined') return null;
   const def = FURNITURE[type];
   if(!def) return null;
+
+  // Try GLTF model first
+  if (def.modelUrl) {
+    const gltfMesh = createGLTFMesh(def, gx, gz, rotation, opacity);
+    if (gltfMesh) {
+      gltfMesh.userData.type = type;
+      return gltfMesh;
+    }
+    // Model not loaded yet — fall through to primitive
+  }
+
+  // ── Primitive fallback (original box-based rendering) ──
   const group = new THREE.Group();
   const alpha = opacity != null ? opacity : 1;
 
@@ -1358,6 +1515,7 @@ function onResize(){
     const h = container.clientHeight || (window.innerHeight - 52) || 600;
     if (w > 0 && h > 0) {
       renderer.setSize(w, h);
+      if (composer) composer.setSize(w, h);
       updateCamera();
     }
   }
@@ -1367,12 +1525,170 @@ window.addEventListener('resize', onResize);
 function animate(){
   animFrameId = requestAnimationFrame(animate);
   try {
-    if (controls) controls.update();
+    // First-person movement processing
+    if (isFirstPerson && fpControls && fpControls.isLocked) {
+      const delta = fpClock.getDelta();
+      fpVelocity.x = 0;
+      fpVelocity.z = 0;
+      fpDirection.z = Number(moveState.forward) - Number(moveState.backward);
+      fpDirection.x = Number(moveState.right) - Number(moveState.left);
+      fpDirection.normalize();
+
+      if (moveState.forward || moveState.backward) fpVelocity.z -= fpDirection.z * FP_SPEED * delta;
+      if (moveState.left || moveState.right) fpVelocity.x -= fpDirection.x * FP_SPEED * delta;
+
+      fpControls.moveRight(-fpVelocity.x);
+      fpControls.moveForward(-fpVelocity.z);
+
+      // Clamp to room bounds
+      const margin = 0.3;
+      camera.position.x = Math.max(margin, Math.min(GRID_W - margin, camera.position.x));
+      camera.position.z = Math.max(margin, Math.min(GRID_D - margin, camera.position.z));
+      camera.position.y = FP_EYE_HEIGHT;
+    }
+
+    if (controls && !isFirstPerson) controls.update();
     if (isWebGL && renderer && scene && camera) {
-      renderer.render(scene, camera);
+      if (composer && postProcessingEnabled) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
     }
   } catch (err) {
     console.warn('Render frame warning:', err);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FIRST-PERSON WALKTHROUGH MODE
+   ═══════════════════════════════════════════════════════════════ */
+function toggleFirstPerson() {
+  if (!isWebGL || !renderer || !camera) return;
+
+  if (isFirstPerson) {
+    exitFirstPerson();
+  } else {
+    enterFirstPerson();
+  }
+}
+
+function enterFirstPerson() {
+  // Save orbit state for returning
+  savedOrbitState = {
+    position: camera.position.clone(),
+    target: controls ? controls.target.clone() : new THREE.Vector3(GRID_W/2, 0.5, GRID_D/2),
+  };
+
+  // Disable orbit controls
+  if (controls) controls.enabled = false;
+
+  // Create PointerLock controls
+  fpControls = new PointerLockControls(camera, renderer.domElement);
+
+  // Set camera to center of room at eye height
+  camera.position.set(GRID_W / 2, FP_EYE_HEIGHT, GRID_D / 2);
+  camera.lookAt(GRID_W / 2, FP_EYE_HEIGHT, 0);
+
+  fpControls.addEventListener('unlock', () => {
+    // When pointer lock is lost, show the lock prompt again
+    const overlay = document.getElementById('fp-overlay');
+    if (overlay && isFirstPerson) overlay.classList.add('active');
+  });
+
+  // Lock pointer
+  fpControls.lock();
+  fpClock.start();
+  isFirstPerson = true;
+
+  // Show crosshair
+  const crosshair = document.getElementById('fp-crosshair');
+  if (crosshair) crosshair.classList.add('active');
+
+  // Show overlay
+  const overlay = document.getElementById('fp-overlay');
+  if (overlay) overlay.classList.add('active');
+
+  // Update button state
+  const btn = document.getElementById('walkthrough-btn');
+  if (btn) btn.classList.add('active');
+
+  // Hide edit UI in walkthrough
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar) sidebar.style.display = 'none';
+  document.querySelectorAll('.canvas-resizer').forEach(el => el.style.display = 'none');
+
+  // WASD listeners
+  document.addEventListener('keydown', onFPKeyDown);
+  document.addEventListener('keyup', onFPKeyUp);
+
+  showToast('Walkthrough mode — WASD to move, mouse to look, ESC to exit');
+}
+
+function exitFirstPerson() {
+  if (fpControls) {
+    fpControls.unlock();
+    fpControls.dispose();
+    fpControls = null;
+  }
+
+  isFirstPerson = false;
+  moveState.forward = moveState.backward = moveState.left = moveState.right = false;
+
+  // Restore orbit camera
+  if (savedOrbitState) {
+    camera.position.copy(savedOrbitState.position);
+    if (controls) {
+      controls.target.copy(savedOrbitState.target);
+      controls.enabled = true;
+      controls.update();
+    }
+    savedOrbitState = null;
+  }
+
+  // Hide crosshair and overlay
+  const crosshair = document.getElementById('fp-crosshair');
+  if (crosshair) crosshair.classList.remove('active');
+  const overlay = document.getElementById('fp-overlay');
+  if (overlay) overlay.classList.remove('active');
+
+  // Update button state
+  const btn = document.getElementById('walkthrough-btn');
+  if (btn) btn.classList.remove('active');
+
+  // Restore sidebar (unless in view mode)
+  if (ACCESS_MODE !== 'view') {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) sidebar.style.display = '';
+    document.querySelectorAll('.canvas-resizer').forEach(el => el.style.display = '');
+  }
+
+  document.removeEventListener('keydown', onFPKeyDown);
+  document.removeEventListener('keyup', onFPKeyUp);
+
+  showToast('Returned to orbit view');
+}
+
+function onFPKeyDown(e) {
+  switch (e.code) {
+    case 'KeyW': case 'ArrowUp': moveState.forward = true; break;
+    case 'KeyS': case 'ArrowDown': moveState.backward = true; break;
+    case 'KeyA': case 'ArrowLeft': moveState.left = true; break;
+    case 'KeyD': case 'ArrowRight': moveState.right = true; break;
+    case 'Escape':
+      exitFirstPerson();
+      e.preventDefault();
+      e.stopPropagation();
+      break;
+  }
+}
+
+function onFPKeyUp(e) {
+  switch (e.code) {
+    case 'KeyW': case 'ArrowUp': moveState.forward = false; break;
+    case 'KeyS': case 'ArrowDown': moveState.backward = false; break;
+    case 'KeyA': case 'ArrowLeft': moveState.left = false; break;
+    case 'KeyD': case 'ArrowRight': moveState.right = false; break;
   }
 }
 
@@ -1480,6 +1796,23 @@ function startApp() {
     });
   }
 
+  // Walkthrough button
+  const walkthroughBtn = document.getElementById('walkthrough-btn');
+  if (walkthroughBtn) {
+    walkthroughBtn.addEventListener('click', toggleFirstPerson);
+  }
+
+  // Overlay click → re-lock pointer in walkthrough mode
+  const fpOverlay = document.getElementById('fp-overlay');
+  if (fpOverlay) {
+    fpOverlay.addEventListener('click', () => {
+      if (isFirstPerson && fpControls) {
+        fpControls.lock();
+        fpOverlay.classList.remove('active');
+      }
+    });
+  }
+
   if (initThreeEngine()) {
     buildRoom();
     rebuildItems();
@@ -1488,6 +1821,11 @@ function startApp() {
     pushHistory();
     updateToolbar();
     animate();
+
+    // In view mode, keep walkthrough button visible for virtual tour
+    if (ACCESS_MODE === 'view' && walkthroughBtn) {
+      walkthroughBtn.parentElement.style.display = '';
+    }
   } else {
     initCanvas2DEngine();
     pushHistory();

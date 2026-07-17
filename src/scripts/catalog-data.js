@@ -205,42 +205,42 @@ export const FURNITURE = {
   ]},
 
   // ── SEATING ──────────────────────────────────────────────────
-  'office-chair':   {name:'Executive Chair',cat:'seating', icon: SVG_ICONS.chair,  gw:1,gd:1, parts:[
+  'office-chair':   {name:'Executive Chair',cat:'seating', icon: SVG_ICONS.chair,  gw:1,gd:1, modelUrl:'/models/office-chair.glb', parts:[
     {dx:0.2,dz:0,dy:0.2, w:0.6,h:0.08,d:0.6, color:'#4a4a50'},
     {dx:0.12,dz:0.25,dy:0.12, w:0.76,h:0.07,d:0.76, color:'#2d2d32'},
     {dx:0.15,dz:0.32,dy:0, w:0.7,h:0.5,d:0.12, color:'#2d2d32'},
   ]},
-  'armchair':       {name:'Armchair',       cat:'seating', icon: SVG_ICONS.chair, gw:1,gd:1, parts:[
+  'armchair':       {name:'Armchair',       cat:'seating', icon: SVG_ICONS.chair, gw:1,gd:1, modelUrl:'/models/armchair.glb', parts:[
     {dx:0.05,dz:0,dy:0.05, w:0.9,h:0.3,d:0.9, color:'#446288'},
     {dx:0.05,dz:0.3,dy:0, w:0.9,h:0.55,d:0.15, color:'#365072'},
     {dx:0,dz:0.3,dy:0.05, w:0.14,h:0.2,d:0.9, color:'#365072'},
     {dx:0.86,dz:0.3,dy:0.05, w:0.14,h:0.2,d:0.9, color:'#365072'},
   ]},
-  'sofa':           {name:'Executive Sofa', cat:'seating', icon: SVG_ICONS.sofa, gw:2,gd:1, parts:[
+  'sofa':           {name:'Executive Sofa', cat:'seating', icon: SVG_ICONS.sofa, gw:2,gd:1, modelUrl:'/models/sofa.glb', parts:[
     {dx:0.05,dz:0,dy:0.05, w:1.9,h:0.3,d:0.9, color:'#58425e'},
     {dx:0.05,dz:0.3,dy:0, w:1.9,h:0.55,d:0.15, color:'#48364e'},
     {dx:0,dz:0.3,dy:0.05, w:0.14,h:0.2,d:0.9, color:'#48364e'},
     {dx:1.86,dz:0.3,dy:0.05, w:0.14,h:0.2,d:0.9, color:'#48364e'},
   ]},
-  'bean-bag':       {name:'Lounge Bean Bag',cat:'seating', icon: SVG_ICONS.chair,  gw:1,gd:1, parts:[
+  'bean-bag':       {name:'Lounge Bean Bag',cat:'seating', icon: SVG_ICONS.chair,  gw:1,gd:1, modelUrl:'/models/bean-bag.glb', parts:[
     {dx:0.1,dz:0,dy:0.1, w:0.8,h:0.35,d:0.8, color:'#aa5a32'},
     {dx:0.2,dz:0.35,dy:0.1, w:0.6,h:0.18,d:0.5, color:'#964e2a'},
   ]},
 
   // ── DESKS & TABLES ───────────────────────────────────────────
-  'simple-desk':    {name:'Simple Desk',    cat:'desks', icon: SVG_ICONS.table,   gw:2,gd:1, parts:[
+  'simple-desk':    {name:'Simple Desk',    cat:'desks', icon: SVG_ICONS.table,   gw:2,gd:1, modelUrl:'/models/simple-desk.glb', parts:[
     {dx:0.02,dz:0,dy:0.02, w:0.08,h:0.42,d:0.08, color:'#745a3a'},
     {dx:1.9,dz:0,dy:0.02, w:0.08,h:0.42,d:0.08, color:'#745a3a'},
     {dx:0.02,dz:0,dy:0.9, w:0.08,h:0.42,d:0.08, color:'#745a3a'},
     {dx:1.9,dz:0,dy:0.9, w:0.08,h:0.42,d:0.08, color:'#745a3a'},
     {dx:0,dz:0.42,dy:0, w:2.0,h:0.06,d:1.0, color:'#8c6f4a'},
   ]},
-  'standing-desk':  {name:'Standing Desk',  cat:'desks', icon: SVG_ICONS.table,   gw:2,gd:1, parts:[
+  'standing-desk':  {name:'Standing Desk',  cat:'desks', icon: SVG_ICONS.table,   gw:2,gd:1, modelUrl:'/models/standing-desk.glb', parts:[
     {dx:0.1,dz:0,dy:0.25, w:0.1,h:0.65,d:0.5, color:'#3d3d42'},
     {dx:1.8,dz:0,dy:0.25, w:0.1,h:0.65,d:0.5, color:'#3d3d42'},
     {dx:0,dz:0.65,dy:0, w:2.0,h:0.05,d:1.0, color:'#d0c4b4'},
   ]},
-  'l-desk':         {name:'L-Shaped Desk',  cat:'desks', icon: SVG_ICONS.table,   gw:2,gd:2, parts:[
+  'l-desk':         {name:'L-Shaped Desk',  cat:'desks', icon: SVG_ICONS.table,   gw:2,gd:2, modelUrl:'/models/l-desk.glb', parts:[
     {dx:0,dz:0,dy:0, w:0.08,h:0.42,d:0.08, color:'#58442a'},
     {dx:1.92,dz:0,dy:0, w:0.08,h:0.42,d:0.08, color:'#58442a'},
     {dx:0,dz:0,dy:1.92, w:0.08,h:0.42,d:0.08, color:'#58442a'},
@@ -248,18 +248,18 @@ export const FURNITURE = {
     {dx:0,dz:0.42,dy:0, w:2.0,h:0.05,d:1.0, color:'#785e3a'},
     {dx:0,dz:0.42,dy:0.95, w:1.0,h:0.05,d:1.05, color:'#785e3a'},
   ]},
-  'round-table':    {name:'Round Table',    cat:'desks', icon: SVG_ICONS.table,   gw:1,gd:1, parts:[
+  'round-table':    {name:'Round Table',    cat:'desks', icon: SVG_ICONS.table,   gw:1,gd:1, modelUrl:'/models/round-table.glb', parts:[
     {dx:0.3,dz:0,dy:0.3, w:0.4,h:0.38,d:0.4, color:'#745a3a'},
     {dx:0.05,dz:0.38,dy:0.05, w:0.9,h:0.05,d:0.9, color:'#8c6f4a'},
   ]},
-  'conf-table':     {name:'Conference Table',cat:'desks', icon: SVG_ICONS.table,  gw:3,gd:2, parts:[
+  'conf-table':     {name:'Conference Table',cat:'desks', icon: SVG_ICONS.table,  gw:3,gd:2, modelUrl:'/models/conf-table.glb', parts:[
     {dx:0.2,dz:0,dy:0.3, w:0.2,h:0.38,d:1.4, color:'#463224'},
     {dx:2.6,dz:0,dy:0.3, w:0.2,h:0.38,d:1.4, color:'#463224'},
     {dx:0,dz:0.38,dy:0, w:3.0,h:0.07,d:2.0, color:'#664c36'},
   ]},
 
   // ── STORAGE ──────────────────────────────────────────────────
-  'bookshelf':      {name:'Tall Bookshelf', cat:'storage', icon: SVG_ICONS.bookshelf, gw:2,gd:1, parts:[
+  'bookshelf':      {name:'Tall Bookshelf', cat:'storage', icon: SVG_ICONS.bookshelf, gw:2,gd:1, modelUrl:'/models/bookshelf.glb', parts:[
     {dx:0,dz:0,dy:0, w:0.06,h:1.5,d:0.8, color:'#58442a'},
     {dx:1.94,dz:0,dy:0, w:0.06,h:1.5,d:0.8, color:'#58442a'},
     {dx:0,dz:0,dy:0, w:2.0,h:0.05,d:0.8, color:'#685234'},
@@ -273,7 +273,7 @@ export const FURNITURE = {
     {dx:0.1,dz:0.46,dy:0.05, w:0.8,h:0.33,d:0.65, color:'#a84444'},
     {dx:1.0,dz:0.46,dy:0.05, w:0.85,h:0.33,d:0.65, color:'#547294'},
   ]},
-  'filing-cabinet': {name:'Filing Cabinet', cat:'storage', icon: SVG_ICONS.storage, gw:1,gd:1, parts:[
+  'filing-cabinet': {name:'Filing Cabinet', cat:'storage', icon: SVG_ICONS.storage, gw:1,gd:1, modelUrl:'/models/filing-cabinet.glb', parts:[
     {dx:0.1,dz:0,dy:0.1, w:0.8,h:0.95,d:0.8, color:'#55555d'},
     {dx:0.25,dz:0.06,dy:0.05, w:0.5,h:0.22,d:0.04, color:'#777780'},
     {dx:0.25,dz:0.34,dy:0.05, w:0.5,h:0.22,d:0.04, color:'#777780'},
@@ -285,12 +285,12 @@ export const FURNITURE = {
   ]},
 
   // ── PLANTS & LIGHTING ────────────────────────────────────────
-  'potted-plant':   {name:'Potted Plant',   cat:'decor', icon: SVG_ICONS.plant,   gw:1,gd:1, parts:[
+  'potted-plant':   {name:'Potted Plant',   cat:'decor', icon: SVG_ICONS.plant,   gw:1,gd:1, modelUrl:'/models/potted-plant.glb', parts:[
     {dx:0.25,dz:0,dy:0.25, w:0.5,h:0.28,d:0.5, color:'#785032'},
     {dx:0.15,dz:0.28,dy:0.15, w:0.7,h:0.4,d:0.7, color:'#2c782c'},
     {dx:0.22,dz:0.62,dy:0.22, w:0.56,h:0.3,d:0.56, color:'#226622'},
   ]},
-  'floor-lamp':     {name:'Floor Lamp',     cat:'decor', icon: SVG_ICONS.lamp,    gw:1,gd:1, parts:[
+  'floor-lamp':     {name:'Floor Lamp',     cat:'decor', icon: SVG_ICONS.lamp,    gw:1,gd:1, modelUrl:'/models/floor-lamp.glb', parts:[
     {dx:0.3,dz:0,dy:0.3, w:0.4,h:0.04,d:0.4, color:'#444'},
     {dx:0.42,dz:0.04,dy:0.42, w:0.16,h:1.1,d:0.16, color:'#333'},
     {dx:0.2,dz:1.1,dy:0.2, w:0.6,h:0.28,d:0.6, color:'#e8d888'},
@@ -310,15 +310,15 @@ export const FURNITURE = {
   ]},
 
   // ── AMENITIES ────────────────────────────────────────────────
-  'coffee-machine': {name:'Espresso Station',cat:'amenity', icon: SVG_ICONS.cup,  gw:1,gd:1, parts:[
+  'coffee-machine': {name:'Espresso Station',cat:'amenity', icon: SVG_ICONS.cup,  gw:1,gd:1, modelUrl:'/models/coffee-machine.glb', parts:[
     {dx:0.15,dz:0,dy:0.15, w:0.7,h:0.5,d:0.7, color:'#2c2c30'},
     {dx:0.25,dz:0.5,dy:0.2, w:0.5,h:0.25,d:0.35, color:'#444'},
   ]},
-  'water-cooler':   {name:'Water Dispenser',cat:'amenity', icon: SVG_ICONS.cup,  gw:1,gd:1, parts:[
+  'water-cooler':   {name:'Water Dispenser',cat:'amenity', icon: SVG_ICONS.cup,  gw:1,gd:1, modelUrl:'/models/water-cooler.glb', parts:[
     {dx:0.2,dz:0,dy:0.2, w:0.6,h:0.7,d:0.6, color:'#b8c4d0'},
     {dx:0.25,dz:0.7,dy:0.25, w:0.5,h:0.45,d:0.5, color:'#4488cc'},
   ]},
-  'mini-fridge':    {name:'Mini Fridge',    cat:'amenity', icon: SVG_ICONS.cup,  gw:1,gd:1, parts:[
+  'mini-fridge':    {name:'Mini Fridge',    cat:'amenity', icon: SVG_ICONS.cup,  gw:1,gd:1, modelUrl:'/models/mini-fridge.glb', parts:[
     {dx:0.1,dz:0,dy:0.1, w:0.8,h:0.85,d:0.8, color:'#28282c'},
     {dx:0.7,dz:0.35,dy:0.05, w:0.05,h:0.2,d:0.04, color:'#888'},
   ]},

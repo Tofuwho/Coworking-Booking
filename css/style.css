@@ -935,3 +935,41 @@ body {
     transform: none !important;
   }
 }
+
+/* ── First-Person Walkthrough UI ───────────────────────────── */
+.fp-crosshair {
+  position: fixed; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 200; pointer-events: none;
+  opacity: 0; transition: opacity 0.3s ease;
+}
+.fp-crosshair.active { opacity: 1; }
+
+.fp-overlay {
+  position: fixed; inset: 0;
+  z-index: 190; display: none;
+  align-items: center; justify-content: center;
+  background: rgba(10, 12, 20, 0.55);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+}
+.fp-overlay.active { display: flex; }
+
+.fp-overlay-content {
+  text-align: center; color: #fff;
+  animation: fadeIn 0.4s ease;
+}
+.fp-overlay-content svg { opacity: 0.7; margin-bottom: 12px; }
+.fp-overlay-content p {
+  font-size: 18px; font-weight: 600; margin: 0 0 6px;
+  letter-spacing: 0.3px;
+}
+.fp-overlay-content span {
+  font-size: 13px; opacity: 0.6; font-weight: 400;
+}
+
+#walkthrough-btn.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 12px var(--accent-glow);
+}
