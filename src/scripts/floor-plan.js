@@ -1,10 +1,17 @@
 import { animate as animeAnimate, stagger, remove as animeRemove } from 'animejs';
-import { coworkingChain } from './blockchain.js';
+import {
+  fetchAllSpots,
+  saveAllSpots,
+  upsertSingleSpot,
+  deleteSingleSpot,
+  setSpotBookingStatus,
+  subscribeToSpots
+} from './backend.js';
 import '/css/style.css';
 
 /* ─────────────────────────────────────────────────────────
    STRICT RBAC ENGINE & JOBSTREET MASTER-DETAIL WORKSPACE PORTAL
-   WITH OOP BLOCKCHAIN SMART CONTRACT LEDGER INTEGRATION
+   WITH SHARED REALTIME BACKEND INTEGRATION
    ───────────────────────────────────────────────────────── */
 const GRID = 40;
 const DESK_W = 60, DESK_H = 40;
@@ -24,24 +31,23 @@ let customerFilter = 'all';
 let adminSearchQuery = '';
 let customerSearchQuery = '';
 
-// Persistence
+// Shared Backend Persistence
 function save() {
-  try {
-    localStorage.setItem('cw_tiles', JSON.stringify(tiles));
-    localStorage.setItem('cw_counters', JSON.stringify({ d: nextDeskNum, r: nextRoomNum, c: tileIdCounter }));
-  } catch (_) {}
+  saveAllSpots(tiles, { d: nextDeskNum, r: nextRoomNum, c: tileIdCounter });
 }
 
-function load() {
+async function load() {
+  const remoteSpots = await fetchAllSpots();
+  if (remoteSpots && Array.isArray(remoteSpots)) {
+    tiles = remoteSpots;
+  }
   try {
-    const raw = localStorage.getItem('cw_tiles');
     const counters = localStorage.getItem('cw_counters');
-    if (raw) tiles = JSON.parse(raw);
     if (counters) {
       const c = JSON.parse(counters);
-      nextDeskNum = c.d;
-      nextRoomNum = c.r;
-      tileIdCounter = c.c;
+      nextDeskNum = c.d || 1;
+      nextRoomNum = c.r || 1;
+      tileIdCounter = c.c || tiles.length;
     }
   } catch (_) {}
 }
@@ -102,12 +108,6 @@ function updateStats() {
   animateCounter(statDesks, deskCount);
   animateCounter(statRooms, roomCount);
   animateCounter(statBooked, bookedCount);
-
-  // Update OOP Blockchain Block Height Badge Counter
-  const blockCounter = document.getElementById('block-height-counter');
-  if (blockCounter && window.coworkingChain) {
-    blockCounter.textContent = `Height ${window.coworkingChain.chain.length}`;
-  }
 }
 
 function showToast(msg) {
@@ -237,7 +237,7 @@ function getPriceForDuration(durationHours) {
 /* ─────────────────────────────────────────────────────────
    Starter Preset Floor Plan
 ───────────────────────────────────────────────────────── */
-function loadPresetFloorPlan() {
+async function loadPresetFloorPlan() {
   if (currentRole !== 'admin') {
     showToast('Unauthorized: Admin access required');
     return;
@@ -255,13 +255,10 @@ function loadPresetFloorPlan() {
   nextRoomNum = 4;
   tileIdCounter = 7;
   selectedTileId = 'tile-5';
-  save();
+  await saveAllSpots(tiles, { d: nextDeskNum, r: nextRoomNum, c: tileIdCounter });
   render();
 
-  if (window.coworkingChain) {
-    window.coworkingChain.addTransaction('PRESET_LOADED', 'floor-0', 'Starter Floor Plan', 'admin', { totalSpots: 7 });
-  }
-  showToast('Loaded Starter Layout & Mined Block');
+  showToast('Loaded Starter Layout');
 }
 
 const loadPresetBtn = document.getElementById('load-preset-floor-chip');
@@ -269,19 +266,20 @@ if (loadPresetBtn) loadPresetBtn.addEventListener('click', loadPresetFloorPlan);
 
 const clearFloorBtn = document.getElementById('clear-floor-btn');
 if (clearFloorBtn) {
-  clearFloorBtn.addEventListener('click', () => {
+  clearFloorBtn.addEventListener('click', async () => {
     if (currentRole !== 'admin') {
       showToast('Unauthorized action');
       return;
     }
     if (tiles.length === 0) return;
+    const oldTiles = [...tiles];
     tiles = [];
     selectedTileId = null;
-    save();
-    render();
-    if (window.coworkingChain) {
-      window.coworkingChain.addTransaction('CLEAR_FLOOR', 'floor-0', 'Floor Cleared', 'admin');
+    await saveAllSpots([]);
+    for (const t of oldTiles) {
+      deleteSingleSpot(t.id);
     }
+    render();
     showToast('Cleared floor plan');
   });
 }
@@ -293,41 +291,37 @@ const addDeskBtn = document.getElementById('add-desk-btn');
 const addRoomBtn = document.getElementById('add-room-btn');
 
 if (addDeskBtn) {
-  addDeskBtn.addEventListener('click', () => {
+  addDeskBtn.addEventListener('click', async () => {
     if (currentRole !== 'admin') return;
     tileIdCounter++;
     const id = 'tile-' + tileIdCounter;
     const label = 'Hot Desk ' + nextDeskNum++;
     const x = snap(80 + (tiles.length % 5) * 80);
     const y = snap(80 + Math.floor(tiles.length / 5) * 60);
-    tiles.push({ id, type: 'desk', x, y, width: DESK_W, height: DESK_H, status: 'available', label, capacity: 1, description: 'Standard Single Person Hot Desk Spot' });
+    const newSpot = { id, type: 'desk', x, y, width: DESK_W, height: DESK_H, status: 'available', label, capacity: 1, description: 'Standard Single Person Hot Desk Spot' };
+    tiles.push(newSpot);
     selectedTileId = id;
+    await upsertSingleSpot(newSpot);
     save();
     render();
-
-    if (window.coworkingChain) {
-      window.coworkingChain.addTransaction('CREATE_SPOT', id, label, 'admin', { type: 'desk' });
-    }
     showToast(`Created ${label}`);
   });
 }
 
 if (addRoomBtn) {
-  addRoomBtn.addEventListener('click', () => {
+  addRoomBtn.addEventListener('click', async () => {
     if (currentRole !== 'admin') return;
     tileIdCounter++;
     const id = 'tile-' + tileIdCounter;
     const label = 'Meeting Room ' + nextRoomNum++;
     const x = snap(320 + (tiles.length % 3) * 140);
     const y = snap(80 + Math.floor(tiles.length / 3) * 100);
-    tiles.push({ id, type: 'room', x, y, width: ROOM_W, height: ROOM_H, status: 'available', label, capacity: 6, description: 'Private Office Room suite' });
+    const newSpot = { id, type: 'room', x, y, width: ROOM_W, height: ROOM_H, status: 'available', label, capacity: 6, description: 'Private Office Room suite' };
+    tiles.push(newSpot);
     selectedTileId = id;
+    await upsertSingleSpot(newSpot);
     save();
     render();
-
-    if (window.coworkingChain) {
-      window.coworkingChain.addTransaction('CREATE_SPOT', id, label, 'admin', { type: 'room' });
-    }
     showToast(`Created ${label}`);
   });
 }
@@ -427,9 +421,6 @@ function renderAdminCards() {
     if (badge3d) {
       badge3d.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (window.coworkingChain) {
-          window.coworkingChain.addTransaction('DECORATE_3D', t.id, t.label, 'admin');
-        }
         window.location.href = `room-decorator.html?room=${encodeURIComponent(t.id)}&name=${encodeURIComponent(t.label)}&mode=edit`;
       });
     }
@@ -500,9 +491,6 @@ function renderAdminDetail() {
     if (t.type === 'room') {
       admin3DBtn.style.display = 'inline-flex';
       admin3DBtn.onclick = () => {
-        if (window.coworkingChain) {
-          window.coworkingChain.addTransaction('DECORATE_3D', t.id, t.label, 'admin');
-        }
         window.location.href = `room-decorator.html?room=${encodeURIComponent(t.id)}&name=${encodeURIComponent(t.label)}&mode=edit`;
       };
     } else {
@@ -519,7 +507,7 @@ function renderAdminDetail() {
   // Save Button
   const saveBtn = document.getElementById('save-spot-btn');
   if (saveBtn) {
-    saveBtn.onclick = () => {
+    saveBtn.onclick = async () => {
       if (currentRole !== 'admin') return;
       if (editLabel && editLabel.value.trim()) t.label = editLabel.value.trim();
       if (editType) {
@@ -531,11 +519,9 @@ function renderAdminDetail() {
       if (editCapacity) t.capacity = parseInt(editCapacity.value) || 1;
       if (editDesc) t.description = editDesc.value;
 
+      await upsertSingleSpot(t);
       save();
       render();
-      if (window.coworkingChain) {
-        window.coworkingChain.addTransaction('UPDATE_SPOT', t.id, t.label, 'admin', { capacity: t.capacity, status: t.status });
-      }
       showToast(`Saved changes for ${t.label}`);
     };
   }
@@ -543,23 +529,22 @@ function renderAdminDetail() {
   // Duplicate Button
   const dupBtn = document.getElementById('duplicate-spot-btn');
   if (dupBtn) {
-    dupBtn.onclick = () => {
+    dupBtn.onclick = async () => {
       if (currentRole !== 'admin') return;
       tileIdCounter++;
       const dupId = 'tile-' + tileIdCounter;
       const dupLabel = t.label + ' (Copy)';
       const x = snap(t.x + 40);
       const y = snap(t.y + 40);
-      tiles.push({
+      const dupSpot = {
         id: dupId, type: t.type, x, y, width: t.width, height: t.height,
         status: 'available', label: dupLabel, capacity: t.capacity, description: t.description
-      });
+      };
+      tiles.push(dupSpot);
       selectedTileId = dupId;
+      await upsertSingleSpot(dupSpot);
       save();
       render();
-      if (window.coworkingChain) {
-        window.coworkingChain.addTransaction('DUPLICATE_SPOT', dupId, dupLabel, 'admin', { original: t.id });
-      }
       showToast(`Duplicated ${dupLabel}`);
     };
   }
@@ -567,16 +552,15 @@ function renderAdminDetail() {
   // Delete Button
   const delBtn = document.getElementById('delete-spot-btn');
   if (delBtn) {
-    delBtn.onclick = () => {
+    delBtn.onclick = async () => {
       if (currentRole !== 'admin') return;
       const name = t.label;
-      tiles = tiles.filter(ti => ti.id !== t.id);
+      const spotIdToDelete = t.id;
+      tiles = tiles.filter(ti => ti.id !== spotIdToDelete);
       selectedTileId = null;
+      await deleteSingleSpot(spotIdToDelete);
       save();
       render();
-      if (window.coworkingChain) {
-        window.coworkingChain.addTransaction('DELETE_SPOT', t.id, name, 'admin');
-      }
       showToast(`Deleted ${name}`);
     };
   }
@@ -777,12 +761,13 @@ function openBookingModal(tile) {
   if (cancelBtn) cancelBtn.onclick = closeModal;
 
   if (finalizeBtn) {
-    finalizeBtn.onclick = () => {
-      tile.status = 'booked';
+    finalizeBtn.onclick = async () => {
+      t.status = 'booked';
+      await setSpotBookingStatus(t.id, 'booked', durationHours);
       save();
       render();
       closeModal();
-      showToast(`Reserved ${tile.label} successfully! 🎉`);
+      showToast(`Reserved ${t.label} successfully! 🎉`);
     };
   }
 }
@@ -799,13 +784,25 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Initialization
-load();
-if (tiles.length === 0) {
-  loadPresetFloorPlan();
-} else {
-  switchRole(currentRole);
+// Initialization with Realtime backend subscription
+async function initApp() {
+  await load();
+  if (!tiles || tiles.length === 0) {
+    await loadPresetFloorPlan();
+  } else {
+    switchRole(currentRole);
+  }
+
+  // Subscribe to live spot changes from other sessions / clients
+  subscribeToSpots((updatedSpots) => {
+    if (updatedSpots && Array.isArray(updatedSpots)) {
+      tiles = updatedSpots;
+      render();
+    }
+  });
+
+  // Reveal page after init (anti-FOUC)
+  document.body.classList.add('ready');
 }
 
-// Reveal page after init (anti-FOUC)
-document.body.classList.add('ready');
+initApp();

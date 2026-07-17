@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.7",
     "animejs": "^4.5.0",
     "three": "^0.185.1"
   },

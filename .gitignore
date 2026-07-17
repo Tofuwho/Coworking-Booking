@@ -38,3 +38,4 @@ build/
 .tmp/
 *.tmp
 *.log
+shared-backend-priority-1-plan.md

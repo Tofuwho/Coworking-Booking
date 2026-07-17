@@ -13,6 +13,7 @@ import { getFloorMaterial, getWallMaterial, getFurnitureMaterial } from './utils
 import { checkAABBCollision, checkGridBounds } from './utils/collision.js';
 import { exportRoomLayoutJSON, openJSONImportPicker } from './utils/export-import.js';
 import { disposeScene } from './utils/cleanup.js';
+import { fetchRoomState, saveRoomState, subscribeToRoom } from './backend.js';
 import '/css/style.css';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -67,16 +68,17 @@ const STATE_KEY = 'cw_room_' + ROOM_ID;
 let isWebGL = false;
 let canvas2D = null, ctx2D = null;
 
-function saveState(){ try{localStorage.setItem(STATE_KEY,JSON.stringify(state))}catch(e){} }
-function loadState(){
-  try{
-    const r=localStorage.getItem(STATE_KEY);
-    if(r){
-      const s=JSON.parse(r);
-      Object.assign(state,s);
-      GRID_W=state.gridW||8; GRID_D=state.gridD||6;
-    }
-  }catch(e){}
+function saveState(){
+  saveRoomState(ROOM_ID, state);
+}
+
+async function loadState(){
+  const remoteState = await fetchRoomState(ROOM_ID);
+  if (remoteState) {
+    Object.assign(state, remoteState);
+    GRID_W = state.gridW || 8;
+    GRID_D = state.gridD || 6;
+  }
 }
 
 function applyPreset(presetId) {
@@ -1687,11 +1689,11 @@ function onFPKeyUp(e) {
 /* ═══════════════════════════════════════════════════════════════
    DOM INITIALIZATION
    ═══════════════════════════════════════════════════════════════ */
-function startApp() {
+async function startApp() {
   const titleEl = document.getElementById('room-title');
   if(titleEl) titleEl.textContent = ROOM_NAME;
 
-  loadState();
+  await loadState();
 
   if((!state.items || state.items.length === 0) && typeof PRESETS !== 'undefined'){
     const starter = PRESETS.find(p=>p.id==='office') || PRESETS[0];
@@ -1823,6 +1825,21 @@ function startApp() {
     pushHistory();
     updateToolbar();
   }
+
+  // Subscribe to real-time changes for this room from other clients/tabs
+  subscribeToRoom(ROOM_ID, (newState) => {
+    if (newState) {
+      Object.assign(state, newState);
+      GRID_W = state.gridW || 8;
+      GRID_D = state.gridD || 6;
+      if (isWebGL && scene) {
+        buildRoom();
+        rebuildItems();
+      } else {
+        renderCanvas2D();
+      }
+    }
+  });
 
   // Reveal page after init (anti-FOUC)
   document.body.classList.add('ready');
