@@ -2,6 +2,11 @@
 -- Enables PostgreSQL tables, RLS policies, Profiles, and Realtime subscriptions
 
 -- 1. PROFILES TABLE (Server-side Role-Based Access Control)
+-- -------------------------------------------------------------
+-- BOOTSTRAP NOTE: Upon sign-up, new users receive default role = 'user'.
+-- To promote your initial superadmin account, run the following in the Supabase Dashboard SQL Editor:
+--   UPDATE public.profiles SET role = 'admin' WHERE id = '<USER_UUID_HERE>';
+-- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
