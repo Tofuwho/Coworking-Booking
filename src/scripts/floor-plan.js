@@ -5,6 +5,10 @@ import {
   upsertSingleSpot,
   deleteSingleSpot,
   setSpotBookingStatus,
+  createBooking,
+  fetchBookingsForSpot,
+  fetchUserBookings,
+  cancelBooking,
   subscribeToSpots,
   signUpWithEmail,
   signInWithEmail,
@@ -710,6 +714,57 @@ function renderCustomerDetail() {
 }
 
 /* ─────────────────────────────────────────────────────────
+   Time-Slot Picker & Pricing Calculation
+───────────────────────────────────────────────────────── */
+function getSelectedTimeRange() {
+  const dateInput = document.getElementById('cust-booking-date');
+  const timeSelect = document.getElementById('cust-start-time');
+  const durationSelect = document.getElementById('cust-duration');
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const dateStr = dateInput?.value || todayStr;
+  const timeStr = timeSelect?.value || '10:00';
+  const durationHours = parseInt(durationSelect?.value) || 2;
+
+  const startsAt = new Date(`${dateStr}T${timeStr}:00`);
+  const endsAt = new Date(startsAt.getTime() + durationHours * 3600 * 1000);
+  const price = getPriceForDuration(durationHours);
+
+  return { startsAt, endsAt, durationHours, price, dateStr, timeStr };
+}
+
+function updateTimeSummary() {
+  const summarySlot = document.getElementById('summary-time-slot');
+  const summaryPrice = document.getElementById('summary-total-price');
+
+  if (!summarySlot || !summaryPrice) return;
+
+  const { startsAt, endsAt, price } = getSelectedTimeRange();
+  const formatTime = (d) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const formatDate = (d) => d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+  summarySlot.textContent = `${formatDate(startsAt)}, ${formatTime(startsAt)} – ${formatTime(endsAt)}`;
+  summaryPrice.textContent = `$${price}.00`;
+}
+
+function setupTimePicker() {
+  const dateInput = document.getElementById('cust-booking-date');
+  const timeSelect = document.getElementById('cust-start-time');
+  const durationSelect = document.getElementById('cust-duration');
+
+  if (dateInput) {
+    const todayStr = new Date().toISOString().split('T')[0];
+    dateInput.value = todayStr;
+    dateInput.min = todayStr;
+    dateInput.addEventListener('change', updateTimeSummary);
+  }
+  if (timeSelect) timeSelect.addEventListener('change', updateTimeSummary);
+  if (durationSelect) durationSelect.addEventListener('change', updateTimeSummary);
+
+  updateTimeSummary();
+}
+
+/* ─────────────────────────────────────────────────────────
    Interactive Glassmorphism Booking Modal Dialog
 ───────────────────────────────────────────────────────── */
 function openBookingModal(tile) {
@@ -717,12 +772,10 @@ function openBookingModal(tile) {
   const workspaceName = document.getElementById('modal-workspace-name');
   const workspaceInfo = document.getElementById('modal-workspace-info');
   const priceVal = document.getElementById('modal-price-val');
-  const durationSelect = document.getElementById('cust-duration');
 
   if (!modal) return;
 
-  const durationHours = durationSelect ? durationSelect.value : '2';
-  const price = getPriceForDuration(durationHours);
+  const { startsAt, endsAt, durationHours, price } = getSelectedTimeRange();
 
   if (workspaceName) workspaceName.textContent = tile.label;
   if (workspaceInfo) workspaceInfo.textContent = `${durationHours} Hours Duration · Capacity: ${tile.capacity || 1} Person(s)`;
@@ -732,18 +785,8 @@ function openBookingModal(tile) {
   const dialog = modal.querySelector('.modal-dialog');
 
   if (typeof animeAnimate === 'function') {
-    safeAnimate(modal, {
-      opacity: [0, 1],
-      duration: 250,
-      ease: 'outQuad'
-    });
-    safeAnimate(dialog, {
-      scale: [0.82, 1],
-      translateY: [30, 0],
-      opacity: [0, 1],
-      duration: 500,
-      ease: 'outQuint'
-    });
+    safeAnimate(modal, { opacity: [0, 1], duration: 250, ease: 'outQuad' });
+    safeAnimate(dialog, { scale: [0.82, 1], translateY: [30, 0], opacity: [0, 1], duration: 500, ease: 'outQuint' });
   }
 
   const closeBtn = document.getElementById('close-booking-modal');
@@ -752,19 +795,8 @@ function openBookingModal(tile) {
 
   const closeModal = () => {
     if (typeof animeAnimate === 'function') {
-      safeAnimate(dialog, {
-        scale: [1, 0.9],
-        opacity: [1, 0],
-        duration: 200,
-        ease: 'inQuad'
-      });
-      safeAnimate(modal, {
-        opacity: [1, 0],
-        duration: 250,
-        ease: 'inQuad',
-        onComplete: () => modal.classList.remove('active'),
-        complete: () => modal.classList.remove('active')
-      });
+      safeAnimate(dialog, { scale: [1, 0.9], opacity: [1, 0], duration: 200, ease: 'inQuad' });
+      safeAnimate(modal, { opacity: [1, 0], duration: 250, ease: 'inQuad', onComplete: () => modal.classList.remove('active'), complete: () => modal.classList.remove('active') });
     } else {
       modal.classList.remove('active');
     }
@@ -775,13 +807,117 @@ function openBookingModal(tile) {
 
   if (finalizeBtn) {
     finalizeBtn.onclick = async () => {
-      t.status = 'booked';
-      await setSpotBookingStatus(t.id, 'booked', durationHours);
-      save();
-      render();
-      closeModal();
-      showToast(`Reserved ${t.label} successfully! 🎉`);
+      finalizeBtn.disabled = true;
+      try {
+        const { startsAt, endsAt, durationHours, price } = getSelectedTimeRange();
+        await createBooking({
+          spotId: tile.id,
+          startsAt: startsAt.toISOString(),
+          endsAt: endsAt.toISOString(),
+          note: `Time-slot booking ($${price})`
+        });
+        save();
+        render();
+        closeModal();
+        showToast(`Reserved ${tile.label} successfully! 🎉`);
+      } catch (err) {
+        showToast(err.message || 'Booking error. Please try another slot.');
+      } finally {
+        finalizeBtn.disabled = false;
+      }
     };
+  }
+}
+
+/* ─────────────────────────────────────────────────────────
+   My Reservations Drawer / Modal Management
+───────────────────────────────────────────────────────── */
+async function renderMyBookings() {
+  const container = document.getElementById('my-bookings-list');
+  if (!container) return;
+
+  container.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-dim);">Loading your reservations...</div>';
+
+  try {
+    const list = await fetchUserBookings();
+    if (!list || list.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center;padding:32px 16px;color:var(--text-dim);">
+          <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:8px;opacity:0.6;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <p style="margin:0;font-size:14px;font-weight:600;">No Reservations Found</p>
+          <span style="font-size:12px;opacity:0.8;">You haven't reserved any workspace spots yet.</span>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = '';
+    list.forEach(b => {
+      const isConfirmed = b.status === 'confirmed';
+      const startDate = new Date(b.starts_at);
+      const endDate = new Date(b.ends_at);
+      const spotLabel = b.spots?.label || `Spot #${b.spot_id}`;
+
+      const card = document.createElement('div');
+      card.style.cssText = 'padding:14px 16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;';
+
+      const formatTime = (d) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const formatDate = (d) => d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+
+      card.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <strong style="font-size:14px;color:var(--text);">${spotLabel}</strong>
+            <span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:${isConfirmed ? '#dcfce7' : '#fee2e2'};color:${isConfirmed ? '#15803d' : '#b91c1c'};">${isConfirmed ? 'CONFIRMED' : 'CANCELLED'}</span>
+          </div>
+          <span style="font-size:12px;color:var(--text-dim);">📅 ${formatDate(startDate)} · ${formatTime(startDate)} – ${formatTime(endDate)}</span>
+        </div>
+      `;
+
+      if (isConfirmed) {
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'action-btn danger btn-sm';
+        cancelBtn.style.cssText = 'padding:4px 10px;font-size:12px;';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.onclick = async () => {
+          if (!confirm(`Cancel reservation for ${spotLabel}?`)) return;
+          cancelBtn.disabled = true;
+          try {
+            await cancelBooking(b.id);
+            showToast('Reservation cancelled');
+            renderMyBookings();
+            render();
+          } catch (err) {
+            showToast('Failed to cancel reservation');
+          } finally {
+            cancelBtn.disabled = false;
+          }
+        };
+        card.appendChild(cancelBtn);
+      }
+
+      container.appendChild(card);
+    });
+  } catch (err) {
+    container.innerHTML = '<div style="text-align:center;padding:24px;color:var(--danger);">Error loading reservations</div>';
+  }
+}
+
+function setupMyBookingsModal() {
+  const myResBtn = document.getElementById('my-reservations-btn');
+  const modal = document.getElementById('my-bookings-modal');
+  const closeBtn = document.getElementById('close-my-bookings-modal');
+
+  if (myResBtn && modal) {
+    myResBtn.addEventListener('click', () => {
+      modal.classList.add('active');
+      renderMyBookings();
+    });
+  }
+
+  if (closeBtn && modal) {
+    closeBtn.addEventListener('click', () => {
+      modal.classList.remove('active');
+    });
   }
 }
 
@@ -803,12 +939,14 @@ let authMode = 'login'; // 'login' | 'signup'
 
 function updateAuthUI() {
   const signInBtn = document.getElementById('auth-signin-btn');
+  const myResBtn = document.getElementById('my-reservations-btn');
   const profileBadge = document.getElementById('user-profile-badge');
   const emailText = document.getElementById('user-email-text');
   const roleChip = document.getElementById('user-role-chip');
 
   if (currentUser) {
     if (signInBtn) signInBtn.style.display = 'none';
+    if (myResBtn) myResBtn.style.display = 'inline-flex';
     if (profileBadge) profileBadge.style.display = 'flex';
     if (emailText) emailText.textContent = currentUser.email;
     const roleName = currentProfile?.role || 'user';
@@ -819,6 +957,7 @@ function updateAuthUI() {
     }
   } else {
     if (signInBtn) signInBtn.style.display = 'inline-flex';
+    if (myResBtn) myResBtn.style.display = 'none';
     if (profileBadge) profileBadge.style.display = 'none';
   }
 }
@@ -926,6 +1065,8 @@ function setupAuthModal() {
 async function initApp() {
   await load();
   setupAuthModal();
+  setupTimePicker();
+  setupMyBookingsModal();
 
   if (!tiles) {
     tiles = [];

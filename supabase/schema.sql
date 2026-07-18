@@ -1,5 +1,5 @@
 -- Supabase Schema for Coworking Booking Application
--- Enables PostgreSQL tables, RLS policies, Profiles, and Realtime subscriptions
+-- Enables PostgreSQL tables, RLS policies, Profiles, Time-Slot Bookings, and Realtime subscriptions
 
 -- ─── OPTIONAL RESET CLEANUP (Uncomment ONLY if resetting database tables) ───
 -- DROP TABLE IF EXISTS public.spot_items CASCADE;
@@ -53,15 +53,36 @@ CREATE TABLE IF NOT EXISTS public.spots (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. BOOKINGS TABLE (Workspace reservations & log history)
+-- 3. BOOKINGS TABLE (Time-Slot Workspace Reservations & Audit Log)
 CREATE TABLE IF NOT EXISTS public.bookings (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   spot_id TEXT REFERENCES public.spots(id) ON DELETE CASCADE,
   user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ends_at TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '2 hours',
+  status TEXT NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'cancelled')),
   note TEXT DEFAULT '',
   booked_at TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ENABLE BTREE_GIST EXTENSION FOR OVERLAPPING BOOKING EXCLUSION CONSTRAINT
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+-- PREVENT OVERLAPPING CONFIRMED BOOKINGS FOR THE SAME SPOT AT THE POSTGRES DB LEVEL
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'no_overlapping_bookings'
+  ) THEN
+    ALTER TABLE public.bookings
+      ADD CONSTRAINT no_overlapping_bookings
+      EXCLUDE USING gist (
+        spot_id WITH =,
+        tstzrange(starts_at, ends_at) WITH &&
+      ) WHERE (status = 'confirmed');
+  END IF;
+END $$;
 
 -- 4. ROOMS TABLE (3D Room Decorator header: grid dimensions and wall/floor materials)
 CREATE TABLE IF NOT EXISTS public.rooms (
@@ -185,13 +206,25 @@ DROP POLICY IF EXISTS "Authenticated users insert bookings" ON public.bookings;
 CREATE POLICY "Authenticated users insert bookings" ON public.bookings
   FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
+DROP POLICY IF EXISTS "Users cancel own bookings" ON public.bookings;
+CREATE POLICY "Users cancel own bookings" ON public.bookings
+  FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id AND status = 'cancelled');
+
+DROP POLICY IF EXISTS "Admins update bookings" ON public.bookings;
+CREATE POLICY "Admins update bookings" ON public.bookings
+  FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
 DROP POLICY IF EXISTS "Admins delete bookings" ON public.bookings;
 CREATE POLICY "Admins delete bookings" ON public.bookings
   FOR DELETE USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
--- ENABLE REALTIME ON SPOTS, ROOMS, AND SPOT_ITEMS
+-- ENABLE REALTIME ON SPOTS, ROOMS, SPOT_ITEMS, AND BOOKINGS
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -213,5 +246,12 @@ BEGIN
     WHERE pubname = 'supabase_realtime' AND tablename = 'spot_items'
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.spot_items;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'bookings'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.bookings;
   END IF;
 END $$;

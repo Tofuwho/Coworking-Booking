@@ -171,33 +171,187 @@ export async function deleteSingleSpot(spotId) {
 }
 
 export async function setSpotBookingStatus(spotId, status, duration = null) {
-  if (isSupabaseConfigured) {
-    try {
-      const { error: spotErr } = await supabase
-        .from('spots')
-        .update({ status, updated_by: CLIENT_SESSION_ID, updated_at: new Date().toISOString() })
-        .eq('id', String(spotId));
-      if (spotErr) console.error('[Backend] Supabase setSpotBookingStatus spots error:', spotErr);
-
-      if (status === 'booked') {
-        const { error: bookErr } = await supabase.from('bookings').insert([{
-          spot_id: String(spotId),
-          note: duration ? `Duration: ${duration} hours` : 'Standard booking',
-          booked_at: new Date().toISOString()
-        }]);
-        if (bookErr) console.error('[Backend] Supabase setSpotBookingStatus bookings insert error:', bookErr);
-      }
-    } catch (err) {
-      console.warn('[Backend] Supabase setSpotBookingStatus error:', err);
-    }
+  if (status === 'booked') {
+    const now = new Date();
+    const durationHours = parseInt(duration) || 2;
+    const ends = new Date(now.getTime() + durationHours * 3600 * 1000);
+    return await createBooking({
+      spotId,
+      startsAt: now.toISOString(),
+      endsAt: ends.toISOString(),
+      note: `Standard booking (${durationHours} hrs)`
+    });
   }
 
+  // If status is set to available by admin
   const existing = await fetchAllSpots() || [];
   const spot = existing.find(s => String(s.id) === String(spotId));
   if (spot) {
     spot.status = status;
     await saveAllSpots(existing);
   }
+}
+
+export async function createBooking({ spotId, startsAt, endsAt, note = '' }) {
+  const user = await getCurrentUser();
+
+  if (isSupabaseConfigured) {
+    const record = {
+      spot_id: String(spotId),
+      user_id: user?.id || null,
+      starts_at: new Date(startsAt).toISOString(),
+      ends_at: new Date(endsAt).toISOString(),
+      status: 'confirmed',
+      note: note || 'Time-slot reservation',
+      booked_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase.from('bookings').insert([record]).select().single();
+    if (error) {
+      console.error('[Backend] Supabase createBooking error:', error);
+      // Catch GIST exclusion constraint error 23P01 (no_overlapping_bookings)
+      if (error.code === '23P01' || error.message?.includes('no_overlapping_bookings')) {
+        throw new Error('That time slot is already reserved for this workspace.');
+      }
+      throw error;
+    }
+    return data;
+  }
+
+  // Local dev mode fallback
+  if (import.meta.env.DEV) {
+    const rawLocalBookings = localStorage.getItem('cw_local_bookings') || '[]';
+    const localBookings = JSON.parse(rawLocalBookings);
+    const startIso = new Date(startsAt).toISOString();
+    const endIso = new Date(endsAt).toISOString();
+
+    // Check overlap locally
+    const overlap = localBookings.find(b =>
+      b.spot_id === String(spotId) &&
+      b.status === 'confirmed' &&
+      new Date(b.starts_at) < new Date(endIso) &&
+      new Date(b.ends_at) > new Date(startIso)
+    );
+
+    if (overlap) {
+      throw new Error('That time slot is already reserved for this workspace.');
+    }
+
+    const newBooking = {
+      id: Date.now(),
+      spot_id: String(spotId),
+      user_id: user?.id || 'local-user-id',
+      starts_at: startIso,
+      ends_at: endIso,
+      status: 'confirmed',
+      note,
+      booked_at: new Date().toISOString()
+    };
+    localBookings.push(newBooking);
+    localStorage.setItem('cw_local_bookings', JSON.stringify(localBookings));
+
+    if (localChannel) {
+      localChannel.postMessage({ type: 'BOOKINGS_UPDATED', data: newBooking, senderId: CLIENT_SESSION_ID });
+    }
+    return newBooking;
+  }
+
+  throw new Error('Supabase is not configured for this environment.');
+}
+
+export async function fetchBookingsForSpot(spotId) {
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('spot_id', String(spotId))
+        .eq('status', 'confirmed')
+        .order('starts_at', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.warn('[Backend] fetchBookingsForSpot error:', err);
+      return [];
+    }
+  }
+
+  if (import.meta.env.DEV) {
+    try {
+      const raw = localStorage.getItem('cw_local_bookings') || '[]';
+      const all = JSON.parse(raw);
+      return all.filter(b => b.spot_id === String(spotId) && b.status === 'confirmed');
+    } catch (_) { return []; }
+  }
+
+  return [];
+}
+
+export async function fetchUserBookings() {
+  const user = await getCurrentUser();
+  if (!user) return [];
+
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*, spots(label, type)')
+        .eq('user_id', user.id)
+        .order('starts_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.warn('[Backend] fetchUserBookings error:', err);
+      return [];
+    }
+  }
+
+  if (import.meta.env.DEV) {
+    try {
+      const raw = localStorage.getItem('cw_local_bookings') || '[]';
+      const all = JSON.parse(raw);
+      const spots = await fetchAllSpots() || [];
+      return all
+        .filter(b => b.user_id === user.id)
+        .map(b => {
+          const spot = spots.find(s => String(s.id) === String(b.spot_id));
+          return { ...b, spots: { label: spot?.label || 'Workspace', type: spot?.type || 'desk' } };
+        })
+        .sort((a, b) => new Date(b.starts_at) - new Date(a.starts_at));
+    } catch (_) { return []; }
+  }
+
+  return [];
+}
+
+export async function cancelBooking(bookingId) {
+  if (isSupabaseConfigured) {
+    const { error } = await supabase
+      .from('bookings')
+      .update({ status: 'cancelled' })
+      .eq('id', bookingId);
+    if (error) {
+      console.error('[Backend] cancelBooking error:', error);
+      throw error;
+    }
+    return true;
+  }
+
+  if (import.meta.env.DEV) {
+    const raw = localStorage.getItem('cw_local_bookings') || '[]';
+    const all = JSON.parse(raw);
+    const item = all.find(b => String(b.id) === String(bookingId));
+    if (item) {
+      item.status = 'cancelled';
+      localStorage.setItem('cw_local_bookings', JSON.stringify(all));
+      if (localChannel) {
+        localChannel.postMessage({ type: 'BOOKINGS_UPDATED', data: item, senderId: CLIENT_SESSION_ID });
+      }
+    }
+    return true;
+  }
+
+  return false;
 }
 
 export function subscribeToSpots(callback) {
