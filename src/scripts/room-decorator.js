@@ -677,7 +677,14 @@ function setupCanvasResizers() {
   if (sizeW) {
     sizeW.value = GRID_W;
     if (valW) valW.textContent = GRID_W;
+    
+    // Live label update while dragging
     sizeW.addEventListener('input', () => {
+      if (valW) valW.textContent = sizeW.value;
+    });
+
+    // Commit state, network save, and 3D room rebuild only on change (release)
+    sizeW.addEventListener('change', () => {
       GRID_W = parseInt(sizeW.value);
       state.gridW = GRID_W;
       if (valW) valW.textContent = GRID_W;
@@ -694,7 +701,14 @@ function setupCanvasResizers() {
   if (sizeD) {
     sizeD.value = GRID_D;
     if (valD) valD.textContent = GRID_D;
+    
+    // Live label update while dragging
     sizeD.addEventListener('input', () => {
+      if (valD) valD.textContent = sizeD.value;
+    });
+
+    // Commit state, network save, and 3D room rebuild only on change (release)
+    sizeD.addEventListener('change', () => {
       GRID_D = parseInt(sizeD.value);
       state.gridD = GRID_D;
       if (valD) valD.textContent = GRID_D;

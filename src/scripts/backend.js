@@ -30,6 +30,8 @@ export const supabase = isSupabaseConfigured
 
 console.log(`[Backend] Initialized. Engine: ${isSupabaseConfigured ? 'Supabase Realtime Postgres' : 'Local Reactive Shared Engine (BroadcastChannel + Local Storage)'}`);
 
+export const CLIENT_SESSION_ID = Math.random().toString(36).substring(2) + Date.now().toString(36);
+
 // Fallback BroadcastChannel for multi-tab/window sync when Supabase is not configured
 const localChannel = typeof BroadcastChannel !== 'undefined'
   ? new BroadcastChannel('cw_shared_backend_sync')
@@ -40,7 +42,8 @@ const roomSubscribers = new Map(); // roomId -> Set of callbacks
 
 if (localChannel) {
   localChannel.onmessage = (event) => {
-    const { type, data } = event.data || {};
+    const { type, data, senderId } = event.data || {};
+    if (senderId === CLIENT_SESSION_ID) return; // Echo-guard: skip self messages
     if (type === 'SPOTS_UPDATED') {
       spotSubscribers.forEach(cb => cb(data));
     } else if (type === 'ROOM_UPDATED' && data?.roomId) {
@@ -59,10 +62,13 @@ export async function fetchAllSpots() {
         .from('spots')
         .select('*')
         .order('created_at', { ascending: true });
-      if (error) throw error;
+      if (error) {
+        console.error('[Backend] Supabase fetchAllSpots error:', error);
+        throw error;
+      }
       return data || [];
     } catch (err) {
-      console.warn('[Backend] Error fetching spots from Supabase, falling back to local:', err);
+      console.warn('[Backend] Error fetching spots from Supabase, falling back to local storage:', err);
     }
   }
 
@@ -90,6 +96,7 @@ export async function saveAllSpots(spots, counters = null) {
         y: s.y ?? 0,
         w: s.w ?? 60,
         h: s.h ?? 40,
+        updated_by: CLIENT_SESSION_ID,
         updated_at: new Date().toISOString()
       }));
       const { error } = await supabase.from('spots').upsert(records, { onConflict: 'id' });
@@ -109,7 +116,7 @@ export async function saveAllSpots(spots, counters = null) {
 
   // Broadcast to other sessions
   if (localChannel) {
-    localChannel.postMessage({ type: 'SPOTS_UPDATED', data: spots });
+    localChannel.postMessage({ type: 'SPOTS_UPDATED', data: spots, senderId: CLIENT_SESSION_ID });
   }
 }
 
@@ -127,9 +134,11 @@ export async function upsertSingleSpot(spot) {
         y: spot.y ?? 0,
         w: spot.w ?? 60,
         h: spot.h ?? 40,
+        updated_by: CLIENT_SESSION_ID,
         updated_at: new Date().toISOString()
       };
-      await supabase.from('spots').upsert([record], { onConflict: 'id' });
+      const { error } = await supabase.from('spots').upsert([record], { onConflict: 'id' });
+      if (error) console.error('[Backend] Supabase upsertSingleSpot error:', error);
     } catch (err) {
       console.warn('[Backend] Supabase upsertSingleSpot error:', err);
     }
@@ -149,7 +158,8 @@ export async function upsertSingleSpot(spot) {
 export async function deleteSingleSpot(spotId) {
   if (isSupabaseConfigured) {
     try {
-      await supabase.from('spots').delete().eq('id', String(spotId));
+      const { error } = await supabase.from('spots').delete().eq('id', String(spotId));
+      if (error) console.error('[Backend] Supabase deleteSingleSpot error:', error);
     } catch (err) {
       console.warn('[Backend] Supabase deleteSingleSpot error:', err);
     }
@@ -163,17 +173,19 @@ export async function deleteSingleSpot(spotId) {
 export async function setSpotBookingStatus(spotId, status, duration = null) {
   if (isSupabaseConfigured) {
     try {
-      await supabase
+      const { error: spotErr } = await supabase
         .from('spots')
-        .update({ status, updated_at: new Date().toISOString() })
+        .update({ status, updated_by: CLIENT_SESSION_ID, updated_at: new Date().toISOString() })
         .eq('id', String(spotId));
+      if (spotErr) console.error('[Backend] Supabase setSpotBookingStatus spots error:', spotErr);
 
       if (status === 'booked') {
-        await supabase.from('bookings').insert([{
+        const { error: bookErr } = await supabase.from('bookings').insert([{
           spot_id: String(spotId),
           note: duration ? `Duration: ${duration} hours` : 'Standard booking',
           booked_at: new Date().toISOString()
         }]);
+        if (bookErr) console.error('[Backend] Supabase setSpotBookingStatus bookings insert error:', bookErr);
       }
     } catch (err) {
       console.warn('[Backend] Supabase setSpotBookingStatus error:', err);
@@ -194,7 +206,9 @@ export function subscribeToSpots(callback) {
   if (isSupabaseConfigured) {
     const channel = supabase
       .channel('public:spots')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'spots' }, async () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'spots' }, async (payload) => {
+        // Echo guard: Ignore self-originated postgres changes
+        if (payload.new?.updated_by === CLIENT_SESSION_ID) return;
         const updated = await fetchAllSpots();
         callback(updated);
       })
@@ -222,11 +236,17 @@ export async function fetchRoomState(roomId) {
         .eq('id', roomId)
         .single();
 
-      if (!roomErr && roomData) {
-        const { data: itemsData } = await supabase
+      if (roomErr) {
+        console.error('[Backend] Supabase fetchRoomState header error:', roomErr);
+      } else if (roomData) {
+        const { data: itemsData, error: itemsErr } = await supabase
           .from('spot_items')
           .select('*')
           .eq('room_id', roomId);
+
+        if (itemsErr) {
+          console.error('[Backend] Supabase fetchRoomState items error:', itemsErr);
+        }
 
         return {
           gridW: roomData.grid_w,
@@ -261,18 +281,22 @@ export async function saveRoomState(roomId, state) {
   if (isSupabaseConfigured) {
     try {
       // Upsert room header
-      await supabase.from('rooms').upsert([{
+      const { error: roomErr } = await supabase.from('rooms').upsert([{
         id: roomId,
         grid_w: state.gridW,
         grid_d: state.gridD,
         floor_mat: state.floor,
         left_wall: state.leftWall,
         right_wall: state.rightWall,
+        updated_by: CLIENT_SESSION_ID,
         updated_at: new Date().toISOString()
       }], { onConflict: 'id' });
+      if (roomErr) console.error('[Backend] Supabase saveRoomState room upsert error:', roomErr);
 
       // Delete existing items for this room and re-insert
-      await supabase.from('spot_items').delete().eq('room_id', roomId);
+      const { error: delErr } = await supabase.from('spot_items').delete().eq('room_id', roomId);
+      if (delErr) console.error('[Backend] Supabase saveRoomState delete items error:', delErr);
+
       if (state.items && state.items.length > 0) {
         const itemRecords = state.items.map(i => ({
           id: String(i.id || ('item-' + Math.random().toString(36).substr(2, 6))),
@@ -281,9 +305,11 @@ export async function saveRoomState(roomId, state) {
           gx: i.gx,
           gy: i.gy,
           rotation: i.rotation || 0,
+          updated_by: CLIENT_SESSION_ID,
           updated_at: new Date().toISOString()
         }));
-        await supabase.from('spot_items').insert(itemRecords);
+        const { error: insErr } = await supabase.from('spot_items').insert(itemRecords);
+        if (insErr) console.error('[Backend] Supabase saveRoomState insert items error:', insErr);
       }
     } catch (err) {
       console.warn('[Backend] Supabase saveRoomState error:', err);
@@ -297,7 +323,7 @@ export async function saveRoomState(roomId, state) {
 
   // Broadcast to other sessions
   if (localChannel) {
-    localChannel.postMessage({ type: 'ROOM_UPDATED', data: { roomId, state } });
+    localChannel.postMessage({ type: 'ROOM_UPDATED', data: { roomId, state }, senderId: CLIENT_SESSION_ID });
   }
 }
 
@@ -310,11 +336,15 @@ export function subscribeToRoom(roomId, callback) {
   if (isSupabaseConfigured) {
     const channel = supabase
       .channel(`public:room:${roomId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, async () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, async (payload) => {
+        // Echo guard: Ignore self-originated postgres changes
+        if (payload.new?.updated_by === CLIENT_SESSION_ID) return;
         const newState = await fetchRoomState(roomId);
         callback(newState);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'spot_items', filter: `room_id=eq.${roomId}` }, async () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'spot_items', filter: `room_id=eq.${roomId}` }, async (payload) => {
+        // Echo guard: Ignore self-originated postgres changes
+        if (payload.new?.updated_by === CLIENT_SESSION_ID) return;
         const newState = await fetchRoomState(roomId);
         callback(newState);
       })
@@ -332,3 +362,4 @@ export function subscribeToRoom(roomId, callback) {
     if (cbs) cbs.delete(callback);
   };
 }
+
