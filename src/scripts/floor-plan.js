@@ -269,7 +269,9 @@ async function loadPresetFloorPlan() {
 }
 
 const loadPresetBtn = document.getElementById('load-preset-floor-chip');
+const heroLoadPresetBtn = document.getElementById('hero-load-preset-btn');
 if (loadPresetBtn) loadPresetBtn.addEventListener('click', loadPresetFloorPlan);
+if (heroLoadPresetBtn) heroLoadPresetBtn.addEventListener('click', loadPresetFloorPlan);
 
 const clearFloorBtn = document.getElementById('clear-floor-btn');
 if (clearFloorBtn) {
@@ -295,43 +297,47 @@ if (clearFloorBtn) {
    Admin Workspace Additions
 ───────────────────────────────────────────────────────── */
 const addDeskBtn = document.getElementById('add-desk-btn');
+const heroAddDeskBtn = document.getElementById('hero-add-desk-btn');
 const addRoomBtn = document.getElementById('add-room-btn');
+const heroAddRoomBtn = document.getElementById('hero-add-room-btn');
 
-if (addDeskBtn) {
-  addDeskBtn.addEventListener('click', async () => {
-    if (currentRole !== 'admin') return;
-    tileIdCounter++;
-    const id = 'tile-' + tileIdCounter;
-    const label = 'Hot Desk ' + nextDeskNum++;
-    const x = snap(80 + (tiles.length % 5) * 80);
-    const y = snap(80 + Math.floor(tiles.length / 5) * 60);
-    const newSpot = { id, type: 'desk', x, y, width: DESK_W, height: DESK_H, status: 'available', label, capacity: 1, description: 'Standard Single Person Hot Desk Spot' };
-    tiles.push(newSpot);
-    selectedTileId = id;
-    await upsertSingleSpot(newSpot);
-    save();
-    render();
-    showToast(`Created ${label}`);
-  });
+async function handleCreateDesk() {
+  if (currentRole !== 'admin') return;
+  tileIdCounter++;
+  const id = 'tile-' + tileIdCounter;
+  const label = 'Hot Desk ' + nextDeskNum++;
+  const x = snap(80 + (tiles.length % 5) * 80);
+  const y = snap(80 + Math.floor(tiles.length / 5) * 60);
+  const newSpot = { id, type: 'desk', x, y, width: DESK_W, height: DESK_H, status: 'available', label, capacity: 1, description: 'Standard Single Person Hot Desk Spot' };
+  tiles.push(newSpot);
+  selectedTileId = id;
+  await upsertSingleSpot(newSpot);
+  save();
+  render();
+  showToast(`Created ${label}`);
 }
 
-if (addRoomBtn) {
-  addRoomBtn.addEventListener('click', async () => {
-    if (currentRole !== 'admin') return;
-    tileIdCounter++;
-    const id = 'tile-' + tileIdCounter;
-    const label = 'Meeting Room ' + nextRoomNum++;
-    const x = snap(320 + (tiles.length % 3) * 140);
-    const y = snap(80 + Math.floor(tiles.length / 3) * 100);
-    const newSpot = { id, type: 'room', x, y, width: ROOM_W, height: ROOM_H, status: 'available', label, capacity: 6, description: 'Private Office Room suite' };
-    tiles.push(newSpot);
-    selectedTileId = id;
-    await upsertSingleSpot(newSpot);
-    save();
-    render();
-    showToast(`Created ${label}`);
-  });
+async function handleCreateRoom() {
+  if (currentRole !== 'admin') return;
+  tileIdCounter++;
+  const id = 'tile-' + tileIdCounter;
+  const label = 'Meeting Room ' + nextRoomNum++;
+  const x = snap(320 + (tiles.length % 3) * 140);
+  const y = snap(80 + Math.floor(tiles.length / 3) * 100);
+  const newSpot = { id, type: 'room', x, y, width: ROOM_W, height: ROOM_H, status: 'available', label, capacity: 6, description: 'Private Office Room suite' };
+  tiles.push(newSpot);
+  selectedTileId = id;
+  await upsertSingleSpot(newSpot);
+  save();
+  render();
+  showToast(`Created ${label}`);
 }
+
+if (addDeskBtn) addDeskBtn.addEventListener('click', handleCreateDesk);
+if (heroAddDeskBtn) heroAddDeskBtn.addEventListener('click', handleCreateDesk);
+
+if (addRoomBtn) addRoomBtn.addEventListener('click', handleCreateRoom);
+if (heroAddRoomBtn) heroAddRoomBtn.addEventListener('click', handleCreateRoom);
 
 /* ─────────────────────────────────────────────────────────
    Search & Filter Event Listeners
