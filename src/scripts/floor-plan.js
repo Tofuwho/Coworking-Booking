@@ -4,9 +4,9 @@ import {
   saveAllSpots,
   upsertSingleSpot,
   deleteSingleSpot,
-  setSpotBookingStatus,
   createBooking,
   fetchBookingsForSpot,
+  fetchAllConfirmedBookings,
   fetchUserBookings,
   cancelBooking,
   subscribeToSpots,
@@ -256,10 +256,10 @@ async function loadPresetFloorPlan() {
   tiles = [
     { id: 'tile-1', type: 'desk', x: 80,  y: 80,  width: 60,  height: 40, status: 'available', label: 'Hot Desk 1', capacity: 1, description: 'Standard Ergonomic Desk with Dual Monitors and Power Outlets' },
     { id: 'tile-2', type: 'desk', x: 80,  y: 160, width: 60,  height: 40, status: 'available', label: 'Hot Desk 2', capacity: 1, description: 'Quiet Hot Desk near the Window' },
-    { id: 'tile-3', type: 'desk', x: 180, y: 80,  width: 60,  height: 40, status: 'booked',    label: 'Hot Desk 3', capacity: 1, description: 'Standing Desk with Memory Height Adjustment' },
+    { id: 'tile-3', type: 'desk', x: 180, y: 80,  width: 60,  height: 40, status: 'available', label: 'Hot Desk 3', capacity: 1, description: 'Standing Desk with Memory Height Adjustment' },
     { id: 'tile-4', type: 'desk', x: 180, y: 160, width: 60,  height: 40, status: 'available', label: 'Hot Desk 4', capacity: 1, description: 'Hot Desk adjacent to Coffee Station' },
     { id: 'tile-5', type: 'room', x: 320, y: 80,  width: 120, height: 80, status: 'available', label: 'Executive Office 1', capacity: 6, description: 'High-end executive meeting room fitted with 65-inch 4K screen and glass walls' },
-    { id: 'tile-6', type: 'room', x: 480, y: 80,  width: 120, height: 80, status: 'booked',    label: 'Glass Conference Room', capacity: 10, description: 'Large conference suite with presentation whiteboard and acoustic wood slats' },
+    { id: 'tile-6', type: 'room', x: 480, y: 80,  width: 120, height: 80, status: 'available', label: 'Glass Conference Room', capacity: 10, description: 'Large conference suite with presentation whiteboard and acoustic wood slats' },
     { id: 'tile-7', type: 'room', x: 320, y: 200, width: 120, height: 80, status: 'available', label: 'Breakout Lounge', capacity: 8, description: 'Casual soft-seating lounge with espresso station and neon art' },
   ];
   nextDeskNum = 5;
@@ -384,19 +384,59 @@ document.querySelectorAll('.filter-chip[data-customer-filter]').forEach(btn => {
 /* ─────────────────────────────────────────────────────────
    Rendering Engine
 ───────────────────────────────────────────────────────── */
-function render() {
-  updateStats();
+/* ─────────────────────────────────────────────────────────
+   Dynamic Spot Availability & Rendering Engine
+───────────────────────────────────────────────────────── */
+let cachedActiveBookings = [];
+
+function isSpotBookedNow(spotId, activeBookings) {
+  const now = new Date();
+  return activeBookings.some(b =>
+    String(b.spot_id) === String(spotId) &&
+    b.status === 'confirmed' &&
+    new Date(b.starts_at) <= now &&
+    new Date(b.ends_at) > now
+  );
+}
+
+function isSpotBookedForTimeRange(spotId, startsAt, endsAt, activeBookings) {
+  return activeBookings.some(b =>
+    String(b.spot_id) === String(spotId) &&
+    b.status === 'confirmed' &&
+    new Date(b.starts_at) < endsAt &&
+    new Date(b.ends_at) > startsAt
+  );
+}
+
+function updateHeaderStats(activeBookings = cachedActiveBookings) {
+  const statDesks = document.getElementById('stat-desks');
+  const statRooms = document.getElementById('stat-rooms');
+  const statBooked = document.getElementById('stat-booked');
+
+  const deskCount = tiles.filter(t => t.type === 'desk').length;
+  const roomCount = tiles.filter(t => t.type === 'room').length;
+  const bookedCount = tiles.filter(t => isSpotBookedNow(t.id, activeBookings)).length;
+
+  if (statDesks) statDesks.textContent = deskCount;
+  if (statRooms) statRooms.textContent = roomCount;
+  if (statBooked) statBooked.textContent = bookedCount;
+}
+
+async function render() {
+  cachedActiveBookings = await fetchAllConfirmedBookings();
+  updateHeaderStats(cachedActiveBookings);
+
   if (currentRole === 'admin') {
-    renderAdminCards();
+    renderAdminCards(cachedActiveBookings);
     renderAdminDetail();
   } else {
-    renderCustomerCards();
-    renderCustomerDetail();
+    renderCustomerCards(cachedActiveBookings);
+    renderCustomerDetail(cachedActiveBookings);
   }
 }
 
 /* ── ADMIN: Master Feed Cards ────────────────────────────── */
-function renderAdminCards() {
+function renderAdminCards(activeBookings = cachedActiveBookings) {
   const feed = document.getElementById('admin-cards-feed');
   if (!feed) return;
   feed.innerHTML = '';
@@ -416,6 +456,7 @@ function renderAdminCards() {
   filtered.forEach(t => {
     const isSel = t.id === selectedTileId;
     const isDeco = hasDeco(t.id);
+    const isBooked = isSpotBookedNow(t.id, activeBookings);
 
     const card = document.createElement('div');
     card.className = 'spot-card' + (isSel ? ' active' : '');
@@ -426,8 +467,8 @@ function renderAdminCards() {
       </div>
       <div class="card-meta">
         <span class="status-indicator">
-          <span class="dot ${t.status === 'booked' ? 'booked' : 'available'}"></span>
-          ${t.status === 'booked' ? 'Reserved' : 'Available'}
+          <span class="dot ${isBooked ? 'booked' : 'available'}"></span>
+          ${isBooked ? 'Reserved Now' : 'Available'}
         </span>
         <span>Capacity: ${t.capacity || (t.type === 'room' ? 6 : 1)}</span>
         ${t.type === 'room' ? `<span class="badge-3d" title="Click to Decorate 3D"><svg viewBox="0 0 24 24"><path d="M12 2l10 6.5v7L12 22 2 15.5v-7L12 2z"/><path d="M12 22v-9.5"/><path d="M22 8.5l-10 5-10-5"/></svg> ${isDeco ? 'Decorated 3D' : 'Decorate 3D'}</span>` : ''}
@@ -444,7 +485,7 @@ function renderAdminCards() {
 
     card.addEventListener('click', () => {
       selectedTileId = t.id;
-      renderAdminCards();
+      renderAdminCards(activeBookings);
       renderAdminDetail();
     });
 
@@ -584,10 +625,12 @@ function renderAdminDetail() {
 }
 
 /* ── CUSTOMER: Master Feed Cards ─────────────────────────── */
-function renderCustomerCards() {
+function renderCustomerCards(activeBookings = cachedActiveBookings) {
   const feed = document.getElementById('customer-cards-feed');
   if (!feed) return;
   feed.innerHTML = '';
+
+  const { startsAt, endsAt } = getSelectedTimeRange();
 
   const filtered = tiles.filter(t => {
     if (customerFilter === 'room' && t.type !== 'room') return false;
@@ -604,6 +647,7 @@ function renderCustomerCards() {
   filtered.forEach(t => {
     const isSel = t.id === selectedTileId;
     const isDeco = hasDeco(t.id);
+    const isBookedForSlot = isSpotBookedForTimeRange(t.id, startsAt, endsAt, activeBookings);
 
     const card = document.createElement('div');
     card.className = 'spot-card' + (isSel ? ' active' : '');
@@ -614,8 +658,8 @@ function renderCustomerCards() {
       </div>
       <div class="card-meta">
         <span class="status-indicator">
-          <span class="dot ${t.status === 'booked' ? 'booked' : 'available'}"></span>
-          ${t.status === 'booked' ? 'Reserved' : 'Available'}
+          <span class="dot ${isBookedForSlot ? 'booked' : 'available'}"></span>
+          ${isBookedForSlot ? 'Reserved for Slot' : 'Available'}
         </span>
         <span>Seats: ${t.capacity || (t.type === 'room' ? 6 : 1)}</span>
         ${t.type === 'room' ? `<span class="badge-3d" title="Click to View 3D Room Tour"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> View 3D</span>` : ''}
@@ -632,8 +676,8 @@ function renderCustomerCards() {
 
     card.addEventListener('click', () => {
       selectedTileId = t.id;
-      renderCustomerCards();
-      renderCustomerDetail();
+      renderCustomerCards(activeBookings);
+      renderCustomerDetail(activeBookings);
     });
 
     feed.appendChild(card);
@@ -652,7 +696,7 @@ function renderCustomerCards() {
 }
 
 /* ── CUSTOMER: Detail & Booking CTA Panel ─────────────────── */
-function renderCustomerDetail() {
+function renderCustomerDetail(activeBookings = cachedActiveBookings) {
   const emptyDetail = document.getElementById('customer-empty-detail');
   const detailContent = document.getElementById('customer-detail-content');
 
@@ -684,11 +728,14 @@ function renderCustomerDetail() {
   const user3DBtn = document.getElementById('user-view-3d-btn');
   const confirmBtn = document.getElementById('cust-confirm-btn');
 
+  const { startsAt, endsAt } = getSelectedTimeRange();
+  const isBookedForSlot = isSpotBookedForTimeRange(t.id, startsAt, endsAt, activeBookings);
+
   if (titleEl) titleEl.textContent = t.label;
   if (typeBadge) typeBadge.textContent = t.type === 'room' ? 'Private Meeting Suite' : 'Hot Desk Spot';
   if (statusBadge) {
-    statusBadge.textContent = t.status === 'booked' ? '🔴 Reserved / Unavailable' : '🟢 Available Now';
-    statusBadge.style.color = t.status === 'booked' ? 'var(--danger)' : 'var(--success)';
+    statusBadge.textContent = isBookedForSlot ? '🔴 Reserved for Selected Time' : '🟢 Available for Selected Time';
+    statusBadge.style.color = isBookedForSlot ? 'var(--danger)' : 'var(--success)';
   }
   if (descEl) descEl.textContent = t.description || 'Modern ergonomic workspace spot with high-speed Internet and coffee amenities.';
 
@@ -704,9 +751,9 @@ function renderCustomerDetail() {
   }
 
   if (confirmBtn) {
-    confirmBtn.disabled = t.status === 'booked';
+    confirmBtn.disabled = isBookedForSlot;
     confirmBtn.onclick = () => {
-      if (t.status === 'available') {
+      if (!isBookedForSlot) {
         openBookingModal(t);
       }
     };
@@ -745,6 +792,11 @@ function updateTimeSummary() {
 
   summarySlot.textContent = `${formatDate(startsAt)}, ${formatTime(startsAt)} – ${formatTime(endsAt)}`;
   summaryPrice.textContent = `$${price}.00`;
+
+  if (currentRole === 'user') {
+    renderCustomerCards(cachedActiveBookings);
+    renderCustomerDetail(cachedActiveBookings);
+  }
 }
 
 function setupTimePicker() {

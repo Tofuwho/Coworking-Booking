@@ -354,6 +354,33 @@ export async function cancelBooking(bookingId) {
   return false;
 }
 
+export async function fetchAllConfirmedBookings() {
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('status', 'confirmed')
+        .order('starts_at', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.warn('[Backend] fetchAllConfirmedBookings error:', err);
+      return [];
+    }
+  }
+
+  if (import.meta.env.DEV) {
+    try {
+      const raw = localStorage.getItem('cw_local_bookings') || '[]';
+      const all = JSON.parse(raw);
+      return all.filter(b => b.status === 'confirmed');
+    } catch (_) { return []; }
+  }
+
+  return [];
+}
+
 export function subscribeToSpots(callback) {
   spotSubscribers.add(callback);
 
