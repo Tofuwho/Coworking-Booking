@@ -921,11 +921,10 @@ async function initApp() {
   await load();
   setupAuthModal();
 
-  if (!tiles || tiles.length === 0) {
-    await loadPresetFloorPlan();
-  } else {
-    switchRole(currentRole);
+  if (!tiles) {
+    tiles = [];
   }
+  switchRole(currentRole);
 
   // Subscribe to live spot changes from other sessions / clients
   subscribeToSpots((updatedSpots) => {
