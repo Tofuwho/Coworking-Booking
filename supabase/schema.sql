@@ -89,11 +89,14 @@ DROP POLICY IF EXISTS "Public profiles read" ON public.profiles;
 CREATE POLICY "Public profiles read" ON public.profiles FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Users update own profile or admins update" ON public.profiles;
-CREATE POLICY "Users update own profile or admins update" ON public.profiles
-  FOR UPDATE USING (
-    auth.uid() = id OR EXISTS (
-      SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'
-    )
+DROP POLICY IF EXISTS "Only admins can update profiles" ON public.profiles;
+CREATE POLICY "Only admins can update profiles" ON public.profiles
+  FOR UPDATE
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  )
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
 -- ─── RLS POLICIES FOR SPOTS ────────────────────────────────────
