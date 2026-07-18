@@ -50,6 +50,21 @@
         <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M5 6v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6"/></svg> Clear All
       </button>
     </div>
+
+    <!-- Auth Profile & Sign In Control -->
+    <div class="auth-control" id="auth-control">
+      <button class="action-btn secondary btn-sm" id="auth-signin-btn">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        Sign In
+      </button>
+      <div class="user-profile-badge" id="user-profile-badge" style="display:none;align-items:center;gap:8px;">
+        <span class="user-email" id="user-email-text" style="font-size:12px;font-weight:600;color:var(--text);">user@example.com</span>
+        <span class="role-chip" id="user-role-chip" style="font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--accent-light);color:var(--accent);">User</span>
+        <button class="icon-btn danger" id="auth-signout-btn" title="Sign Out" style="padding:4px;">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
   </header>
 
   <!-- JobStreet Master-Detail Main Grid Layout -->
@@ -266,6 +281,41 @@
         <button class="action-btn secondary" id="cancel-booking-btn" style="flex:1;">Cancel</button>
         <button class="action-btn primary" id="finalize-booking-btn" style="flex:2;">Confirm Reservation</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ── Supabase Authentication Modal ───────────────────────── -->
+  <div class="modal-overlay" id="auth-modal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <span class="modal-title">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Account Authentication
+        </span>
+        <button class="close-modal" id="close-auth-modal">&times;</button>
+      </div>
+
+      <div class="auth-tabs" style="display:flex;gap:8px;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:8px;">
+        <button class="tab-btn active" id="auth-tab-login" type="button" style="flex:1;">Sign In</button>
+        <button class="tab-btn" id="auth-tab-signup" type="button" style="flex:1;">Create Account</button>
+      </div>
+
+      <form id="auth-form" style="display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--text-dim);display:block;margin-bottom:4px;">Email Address</label>
+          <input type="email" id="auth-email" placeholder="user@example.com" required style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--text-dim);display:block;margin-bottom:4px;">Password</label>
+          <input type="password" id="auth-password" placeholder="••••••••" required minlength="6" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);">
+        </div>
+
+        <div id="auth-error-msg" style="display:none;font-size:13px;color:#ef4444;background:#fef2f2;padding:8px 12px;border-radius:6px;border:1px solid #fca5a5;"></div>
+
+        <button type="submit" class="action-btn primary" id="auth-submit-btn" style="width:100%;margin-top:4px;">
+          Sign In
+        </button>
+      </form>
     </div>
   </div>
 

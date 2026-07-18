@@ -5,7 +5,13 @@ import {
   upsertSingleSpot,
   deleteSingleSpot,
   setSpotBookingStatus,
-  subscribeToSpots
+  subscribeToSpots,
+  signUpWithEmail,
+  signInWithEmail,
+  signOut,
+  getCurrentUser,
+  getUserProfile,
+  subscribeToAuthChanges
 } from './backend.js';
 import '/css/style.css';
 
@@ -784,9 +790,131 @@ document.addEventListener('click', (e) => {
   }
 });
 
+let currentUser = null;
+let currentProfile = null;
+let authMode = 'login'; // 'login' | 'signup'
+
+function updateAuthUI() {
+  const signInBtn = document.getElementById('auth-signin-btn');
+  const profileBadge = document.getElementById('user-profile-badge');
+  const emailText = document.getElementById('user-email-text');
+  const roleChip = document.getElementById('user-role-chip');
+
+  if (currentUser) {
+    if (signInBtn) signInBtn.style.display = 'none';
+    if (profileBadge) profileBadge.style.display = 'flex';
+    if (emailText) emailText.textContent = currentUser.email;
+    const roleName = currentProfile?.role || 'user';
+    if (roleChip) {
+      roleChip.textContent = roleName === 'admin' ? 'Admin' : 'User';
+      roleChip.style.background = roleName === 'admin' ? 'var(--accent)' : 'var(--bg-card)';
+      roleChip.style.color = roleName === 'admin' ? '#fff' : 'var(--text)';
+    }
+  } else {
+    if (signInBtn) signInBtn.style.display = 'inline-flex';
+    if (profileBadge) profileBadge.style.display = 'none';
+  }
+}
+
+function setupAuthModal() {
+  const authModal = document.getElementById('auth-modal');
+  const signInBtn = document.getElementById('auth-signin-btn');
+  const closeBtn = document.getElementById('close-auth-modal');
+  const signOutBtn = document.getElementById('auth-signout-btn');
+  const tabLogin = document.getElementById('auth-tab-login');
+  const tabSignup = document.getElementById('auth-tab-signup');
+  const authForm = document.getElementById('auth-form');
+  const authSubmitBtn = document.getElementById('auth-submit-btn');
+  const errorMsg = document.getElementById('auth-error-msg');
+
+  if (signInBtn && authModal) {
+    signInBtn.addEventListener('click', () => {
+      authModal.classList.add('active');
+      if (errorMsg) errorMsg.style.display = 'none';
+    });
+  }
+
+  if (closeBtn && authModal) {
+    closeBtn.addEventListener('click', () => {
+      authModal.classList.remove('active');
+    });
+  }
+
+  if (signOutBtn) {
+    signOutBtn.addEventListener('click', async () => {
+      await signOut();
+      currentUser = null;
+      currentProfile = null;
+      updateAuthUI();
+      switchRole('user');
+      showToast('Signed out');
+    });
+  }
+
+  if (tabLogin && tabSignup) {
+    tabLogin.addEventListener('click', () => {
+      authMode = 'login';
+      tabLogin.classList.add('active');
+      tabSignup.classList.remove('active');
+      if (authSubmitBtn) authSubmitBtn.textContent = 'Sign In';
+      if (errorMsg) errorMsg.style.display = 'none';
+    });
+
+    tabSignup.addEventListener('click', () => {
+      authMode = 'signup';
+      tabSignup.classList.add('active');
+      tabLogin.classList.remove('active');
+      if (authSubmitBtn) authSubmitBtn.textContent = 'Create Account';
+      if (errorMsg) errorMsg.style.display = 'none';
+    });
+  }
+
+  if (authForm) {
+    authForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('auth-email')?.value;
+      const password = document.getElementById('auth-password')?.value;
+      if (!email || !password) return;
+
+      if (errorMsg) errorMsg.style.display = 'none';
+      if (authSubmitBtn) authSubmitBtn.disabled = true;
+
+      try {
+        if (authMode === 'login') {
+          await signInWithEmail(email, password);
+          showToast('Signed in successfully');
+        } else {
+          await signUpWithEmail(email, password);
+          showToast('Account created successfully');
+        }
+        if (authModal) authModal.classList.remove('active');
+      } catch (err) {
+        if (errorMsg) {
+          errorMsg.textContent = err.message || 'Authentication error';
+          errorMsg.style.display = 'block';
+        }
+      } finally {
+        if (authSubmitBtn) authSubmitBtn.disabled = false;
+      }
+    });
+  }
+
+  // Subscribe to real-time auth changes
+  subscribeToAuthChanges(async (user, profile) => {
+    currentUser = user;
+    currentProfile = profile;
+    updateAuthUI();
+    if (user && profile) {
+      switchRole(profile.role || 'user');
+    }
+  });
+}
+
 // Initialization with Realtime backend subscription
 async function initApp() {
   await load();
+  setupAuthModal();
+
   if (!tiles || tiles.length === 0) {
     await loadPresetFloorPlan();
   } else {

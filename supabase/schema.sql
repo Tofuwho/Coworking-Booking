@@ -1,7 +1,30 @@
 -- Supabase Schema for Coworking Booking Application
--- Enables PostgreSQL tables, RLS policies, and Realtime subscriptions
+-- Enables PostgreSQL tables, RLS policies, Profiles, and Realtime subscriptions
 
--- 1. SPOTS TABLE (Floor Plan tiles: Hot Desks, Dedicated Desks, Meeting Rooms)
+-- 1. PROFILES TABLE (Server-side Role-Based Access Control)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Automatic Profile Creation Trigger on User Sign Up
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, role)
+  VALUES (new.id, 'user')
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 2. SPOTS TABLE (Floor Plan tiles: Hot Desks, Dedicated Desks, Meeting Rooms)
 CREATE TABLE IF NOT EXISTS public.spots (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL,
@@ -18,16 +41,17 @@ CREATE TABLE IF NOT EXISTS public.spots (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. BOOKINGS TABLE (Workspace reservations & log history)
+-- 3. BOOKINGS TABLE (Workspace reservations & log history)
 CREATE TABLE IF NOT EXISTS public.bookings (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   spot_id TEXT REFERENCES public.spots(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   note TEXT DEFAULT '',
   booked_at TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. ROOMS TABLE (3D Room Decorator header: grid dimensions and wall/floor materials)
+-- 4. ROOMS TABLE (3D Room Decorator header: grid dimensions and wall/floor materials)
 CREATE TABLE IF NOT EXISTS public.rooms (
   id TEXT PRIMARY KEY,
   grid_w INTEGER NOT NULL DEFAULT 8,
@@ -40,7 +64,7 @@ CREATE TABLE IF NOT EXISTS public.rooms (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. SPOT_ITEMS TABLE (3D placed furniture items per room)
+-- 5. SPOT_ITEMS TABLE (3D placed furniture items per room)
 CREATE TABLE IF NOT EXISTS public.spot_items (
   id TEXT PRIMARY KEY,
   room_id TEXT REFERENCES public.rooms(id) ON DELETE CASCADE,
@@ -54,35 +78,103 @@ CREATE TABLE IF NOT EXISTS public.spot_items (
 );
 
 -- ENABLE ROW LEVEL SECURITY (RLS) ON ALL TABLES
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.spots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.spot_items ENABLE ROW LEVEL SECURITY;
 
--- PUBLIC READ & WRITE POLICIES (Allow anon key access for demo/prototyping)
-DROP POLICY IF EXISTS "Allow public read access on spots" ON public.spots;
-CREATE POLICY "Allow public read access on spots" ON public.spots FOR SELECT USING (true);
+-- ─── RLS POLICIES FOR PROFILES ─────────────────────────────────
+DROP POLICY IF EXISTS "Public profiles read" ON public.profiles;
+CREATE POLICY "Public profiles read" ON public.profiles FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "Allow public write access on spots" ON public.spots;
-CREATE POLICY "Allow public write access on spots" ON public.spots FOR ALL USING (true);
+DROP POLICY IF EXISTS "Users update own profile or admins update" ON public.profiles;
+CREATE POLICY "Users update own profile or admins update" ON public.profiles
+  FOR UPDATE USING (
+    auth.uid() = id OR EXISTS (
+      SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
 
-DROP POLICY IF EXISTS "Allow public read access on bookings" ON public.bookings;
-CREATE POLICY "Allow public read access on bookings" ON public.bookings FOR SELECT USING (true);
+-- ─── RLS POLICIES FOR SPOTS ────────────────────────────────────
+DROP POLICY IF EXISTS "Public read spots" ON public.spots;
+CREATE POLICY "Public read spots" ON public.spots FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "Allow public write access on bookings" ON public.bookings;
-CREATE POLICY "Allow public write access on bookings" ON public.bookings FOR ALL USING (true);
+DROP POLICY IF EXISTS "Admins insert spots" ON public.spots;
+CREATE POLICY "Admins insert spots" ON public.spots
+  FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
 
-DROP POLICY IF EXISTS "Allow public read access on rooms" ON public.rooms;
-CREATE POLICY "Allow public read access on rooms" ON public.rooms FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admins update spots" ON public.spots;
+CREATE POLICY "Admins update spots" ON public.spots
+  FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
 
-DROP POLICY IF EXISTS "Allow public write access on rooms" ON public.rooms;
-CREATE POLICY "Allow public write access on rooms" ON public.rooms FOR ALL USING (true);
+DROP POLICY IF EXISTS "Admins delete spots" ON public.spots;
+CREATE POLICY "Admins delete spots" ON public.spots
+  FOR DELETE USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
 
-DROP POLICY IF EXISTS "Allow public read access on spot_items" ON public.spot_items;
-CREATE POLICY "Allow public read access on spot_items" ON public.spot_items FOR SELECT USING (true);
+-- ─── RLS POLICIES FOR ROOMS ────────────────────────────────────
+DROP POLICY IF EXISTS "Public read rooms" ON public.rooms;
+CREATE POLICY "Public read rooms" ON public.rooms FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "Allow public write access on spot_items" ON public.spot_items;
-CREATE POLICY "Allow public write access on spot_items" ON public.spot_items FOR ALL USING (true);
+DROP POLICY IF EXISTS "Admins insert rooms" ON public.rooms;
+CREATE POLICY "Admins insert rooms" ON public.rooms
+  FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+DROP POLICY IF EXISTS "Admins update rooms" ON public.rooms;
+CREATE POLICY "Admins update rooms" ON public.rooms
+  FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+DROP POLICY IF EXISTS "Admins delete rooms" ON public.rooms;
+CREATE POLICY "Admins delete rooms" ON public.rooms
+  FOR DELETE USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ─── RLS POLICIES FOR SPOT_ITEMS ──────────────────────────────
+DROP POLICY IF EXISTS "Public read spot_items" ON public.spot_items;
+CREATE POLICY "Public read spot_items" ON public.spot_items FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Admins insert spot_items" ON public.spot_items;
+CREATE POLICY "Admins insert spot_items" ON public.spot_items
+  FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+DROP POLICY IF EXISTS "Admins update spot_items" ON public.spot_items;
+CREATE POLICY "Admins update spot_items" ON public.spot_items
+  FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+DROP POLICY IF EXISTS "Admins delete spot_items" ON public.spot_items;
+CREATE POLICY "Admins delete spot_items" ON public.spot_items
+  FOR DELETE USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ─── RLS POLICIES FOR BOOKINGS ─────────────────────────────────
+DROP POLICY IF EXISTS "Public read bookings" ON public.bookings;
+CREATE POLICY "Public read bookings" ON public.bookings FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users insert bookings" ON public.bookings;
+CREATE POLICY "Authenticated users insert bookings" ON public.bookings
+  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+DROP POLICY IF EXISTS "Admins delete bookings" ON public.bookings;
+CREATE POLICY "Admins delete bookings" ON public.bookings
+  FOR DELETE USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
 
 -- ENABLE REALTIME ON SPOTS, ROOMS, AND SPOT_ITEMS
 DO $$

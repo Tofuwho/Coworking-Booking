@@ -363,3 +363,79 @@ export function subscribeToRoom(roomId, callback) {
   };
 }
 
+// ─── SUPABASE AUTH & RBAC PROFILE API ─────────────────────────
+
+export async function signUpWithEmail(email, password) {
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Using local fallback.');
+  }
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (error) throw error;
+  return data;
+}
+
+export async function signInWithEmail(email, password) {
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Using local fallback.');
+  }
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  return data;
+}
+
+export async function signOut() {
+  if (!isSupabaseConfigured) return;
+  const { error } = await supabase.auth.signOut();
+  if (error) console.error('[Backend] Sign out error:', error);
+}
+
+export async function getCurrentUser() {
+  if (!isSupabaseConfigured) return null;
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+}
+
+export async function getUserProfile(userId = null) {
+  if (!isSupabaseConfigured) return null;
+  
+  let targetId = userId;
+  if (!targetId) {
+    const user = await getCurrentUser();
+    if (!user) return null;
+    targetId = user.id;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', targetId)
+      .single();
+    
+    if (error) {
+      console.warn('[Backend] getUserProfile warning:', error.message);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.warn('[Backend] fetch profile error:', err);
+    return null;
+  }
+}
+
+export function subscribeToAuthChanges(callback) {
+  if (!isSupabaseConfigured) return () => {};
+
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const user = session?.user || null;
+    let profile = null;
+    if (user) {
+      profile = await getUserProfile(user.id);
+    }
+    callback(user, profile, event);
+  });
+
+  return () => subscription.unsubscribe();
+}
+
+
