@@ -367,10 +367,13 @@ export function subscribeToRoom(roomId, callback) {
 
 export async function signUpWithEmail(email, password) {
   if (!isSupabaseConfigured) {
-    const mockUser = { id: 'local-user-id', email };
-    const mockProfile = { id: 'local-user-id', role: email.toLowerCase().includes('admin') ? 'admin' : 'user' };
-    localStorage.setItem('cw_local_user', JSON.stringify({ user: mockUser, profile: mockProfile }));
-    return { user: mockUser, session: null };
+    if (import.meta.env.DEV) {
+      const mockUser = { id: 'local-user-id', email };
+      const mockProfile = { id: 'local-user-id', role: email.toLowerCase().includes('admin') ? 'admin' : 'user' };
+      localStorage.setItem('cw_local_user', JSON.stringify({ user: mockUser, profile: mockProfile }));
+      return { user: mockUser, session: null };
+    }
+    throw new Error('Supabase authentication is not configured for this application environment.');
   }
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) throw error;
@@ -379,11 +382,14 @@ export async function signUpWithEmail(email, password) {
 
 export async function signInWithEmail(email, password) {
   if (!isSupabaseConfigured) {
-    const role = email.toLowerCase().includes('admin') ? 'admin' : 'user';
-    const mockUser = { id: 'local-user-id', email };
-    const mockProfile = { id: 'local-user-id', role };
-    localStorage.setItem('cw_local_user', JSON.stringify({ user: mockUser, profile: mockProfile }));
-    return { user: mockUser, session: null };
+    if (import.meta.env.DEV) {
+      const role = email.toLowerCase().includes('admin') ? 'admin' : 'user';
+      const mockUser = { id: 'local-user-id', email };
+      const mockProfile = { id: 'local-user-id', role };
+      localStorage.setItem('cw_local_user', JSON.stringify({ user: mockUser, profile: mockProfile }));
+      return { user: mockUser, session: null };
+    }
+    throw new Error('Supabase authentication is not configured for this application environment.');
   }
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
@@ -392,7 +398,9 @@ export async function signInWithEmail(email, password) {
 
 export async function signOut() {
   if (!isSupabaseConfigured) {
-    localStorage.removeItem('cw_local_user');
+    if (import.meta.env.DEV) {
+      localStorage.removeItem('cw_local_user');
+    }
     return;
   }
   const { error } = await supabase.auth.signOut();
@@ -401,10 +409,13 @@ export async function signOut() {
 
 export async function getCurrentUser() {
   if (!isSupabaseConfigured) {
-    try {
-      const raw = localStorage.getItem('cw_local_user');
-      return raw ? JSON.parse(raw).user : null;
-    } catch (_) { return null; }
+    if (import.meta.env.DEV) {
+      try {
+        const raw = localStorage.getItem('cw_local_user');
+        return raw ? JSON.parse(raw).user : null;
+      } catch (_) { return null; }
+    }
+    return null;
   }
   const { data: { user } } = await supabase.auth.getUser();
   return user;
@@ -412,10 +423,13 @@ export async function getCurrentUser() {
 
 export async function getUserProfile(userId = null) {
   if (!isSupabaseConfigured) {
-    try {
-      const raw = localStorage.getItem('cw_local_user');
-      return raw ? JSON.parse(raw).profile : null;
-    } catch (_) { return null; }
+    if (import.meta.env.DEV) {
+      try {
+        const raw = localStorage.getItem('cw_local_user');
+        return raw ? JSON.parse(raw).profile : null;
+      } catch (_) { return null; }
+    }
+    return null;
   }
   
   let targetId = userId;

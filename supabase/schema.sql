@@ -1,12 +1,12 @@
 -- Supabase Schema for Coworking Booking Application
 -- Enables PostgreSQL tables, RLS policies, Profiles, and Realtime subscriptions
 
--- ─── CLEANUP (Uncomment if resetting existing database tables) ───
-DROP TABLE IF EXISTS public.spot_items CASCADE;
-DROP TABLE IF EXISTS public.rooms CASCADE;
-DROP TABLE IF EXISTS public.bookings CASCADE;
-DROP TABLE IF EXISTS public.spots CASCADE;
-DROP TABLE IF EXISTS public.profiles CASCADE;
+-- ─── OPTIONAL RESET CLEANUP (Uncomment ONLY if resetting database tables) ───
+-- DROP TABLE IF EXISTS public.spot_items CASCADE;
+-- DROP TABLE IF EXISTS public.rooms CASCADE;
+-- DROP TABLE IF EXISTS public.bookings CASCADE;
+-- DROP TABLE IF EXISTS public.spots CASCADE;
+-- DROP TABLE IF EXISTS public.profiles CASCADE;
 
 -- 1. PROFILES TABLE (Server-side Role-Based Access Control)
 -- -------------------------------------------------------------
