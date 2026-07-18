@@ -295,6 +295,11 @@
         <button class="close-modal" id="close-auth-modal">&times;</button>
       </div>
 
+      <div id="auth-info-banner" style="display:none;font-size:12px;color:var(--text);background:#eff6ff;border:1px solid #bfdbfe;padding:8px 12px;border-radius:6px;margin-bottom:12px;line-height:1.4;">
+        ℹ️ <strong>Offline Local Mode Active</strong><br>
+        Supabase is not configured yet in <code>.env</code>. Enter any email to test local auth (include <em>'admin'</em> in email for Admin role).
+      </div>
+
       <div class="auth-tabs" style="display:flex;gap:8px;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:8px;">
         <button class="tab-btn active" id="auth-tab-login" type="button" style="flex:1;">Sign In</button>
         <button class="tab-btn" id="auth-tab-signup" type="button" style="flex:1;">Create Account</button>

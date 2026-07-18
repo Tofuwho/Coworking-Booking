@@ -17,7 +17,7 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-const isSupabaseConfigured = Boolean(
+export const isSupabaseConfigured = Boolean(
   SUPABASE_URL &&
   SUPABASE_ANON_KEY &&
   !SUPABASE_URL.includes('your-project-id') &&
@@ -367,7 +367,10 @@ export function subscribeToRoom(roomId, callback) {
 
 export async function signUpWithEmail(email, password) {
   if (!isSupabaseConfigured) {
-    throw new Error('Supabase is not configured. Using local fallback.');
+    const mockUser = { id: 'local-user-id', email };
+    const mockProfile = { id: 'local-user-id', role: email.toLowerCase().includes('admin') ? 'admin' : 'user' };
+    localStorage.setItem('cw_local_user', JSON.stringify({ user: mockUser, profile: mockProfile }));
+    return { user: mockUser, session: null };
   }
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) throw error;
@@ -376,7 +379,11 @@ export async function signUpWithEmail(email, password) {
 
 export async function signInWithEmail(email, password) {
   if (!isSupabaseConfigured) {
-    throw new Error('Supabase is not configured. Using local fallback.');
+    const role = email.toLowerCase().includes('admin') ? 'admin' : 'user';
+    const mockUser = { id: 'local-user-id', email };
+    const mockProfile = { id: 'local-user-id', role };
+    localStorage.setItem('cw_local_user', JSON.stringify({ user: mockUser, profile: mockProfile }));
+    return { user: mockUser, session: null };
   }
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
@@ -384,19 +391,32 @@ export async function signInWithEmail(email, password) {
 }
 
 export async function signOut() {
-  if (!isSupabaseConfigured) return;
+  if (!isSupabaseConfigured) {
+    localStorage.removeItem('cw_local_user');
+    return;
+  }
   const { error } = await supabase.auth.signOut();
   if (error) console.error('[Backend] Sign out error:', error);
 }
 
 export async function getCurrentUser() {
-  if (!isSupabaseConfigured) return null;
+  if (!isSupabaseConfigured) {
+    try {
+      const raw = localStorage.getItem('cw_local_user');
+      return raw ? JSON.parse(raw).user : null;
+    } catch (_) { return null; }
+  }
   const { data: { user } } = await supabase.auth.getUser();
   return user;
 }
 
 export async function getUserProfile(userId = null) {
-  if (!isSupabaseConfigured) return null;
+  if (!isSupabaseConfigured) {
+    try {
+      const raw = localStorage.getItem('cw_local_user');
+      return raw ? JSON.parse(raw).profile : null;
+    } catch (_) { return null; }
+  }
   
   let targetId = userId;
   if (!targetId) {
@@ -424,7 +444,13 @@ export async function getUserProfile(userId = null) {
 }
 
 export function subscribeToAuthChanges(callback) {
-  if (!isSupabaseConfigured) return () => {};
+  if (!isSupabaseConfigured) {
+    getCurrentUser().then(async (user) => {
+      const profile = await getUserProfile(user?.id);
+      callback(user, profile, 'INITIAL');
+    });
+    return () => {};
+  }
 
   const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
     const user = session?.user || null;

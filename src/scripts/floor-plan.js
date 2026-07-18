@@ -11,7 +11,8 @@ import {
   signOut,
   getCurrentUser,
   getUserProfile,
-  subscribeToAuthChanges
+  subscribeToAuthChanges,
+  isSupabaseConfigured
 } from './backend.js';
 import '/css/style.css';
 
@@ -826,6 +827,11 @@ function setupAuthModal() {
   const authForm = document.getElementById('auth-form');
   const authSubmitBtn = document.getElementById('auth-submit-btn');
   const errorMsg = document.getElementById('auth-error-msg');
+  const infoBanner = document.getElementById('auth-info-banner');
+
+  if (infoBanner) {
+    infoBanner.style.display = isSupabaseConfigured ? 'none' : 'block';
+  }
 
   if (signInBtn && authModal) {
     signInBtn.addEventListener('click', () => {
